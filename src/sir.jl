@@ -6,8 +6,6 @@ function prevalence_cost_model_sir(τ::Float64, r::Float64, ph::Array{Float64}; 
     S = 1 / R0
     R = 1 - S - I
     change_times = [τ, r]
-    println(β0)
-    println(γ0)
     affect!(integrator) = begin
         β = β1
         γ = γ1
