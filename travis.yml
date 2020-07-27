@@ -1,0 +1,9 @@
+codecov: true
+language: julia
+julia:
+  - 1
+  - 1.4
+os: linux
+notifications:
+  email: true
+env: JULIA_NUM_THREADS=2

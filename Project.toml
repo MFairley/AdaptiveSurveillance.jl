@@ -1,0 +1,7 @@
+name = "AdaptiveSurveillance"
+uuid = "69006bd4-4c56-49bd-9558-74ccc455f1d0"
+authors = ["Michael Fairley <michael.fairley@icloud.com>"]
+version = "0.1.0"
+
+[deps]
+DifferentialEquations = "0c46a032-eb83-5123-abaf-570d42b7fbaa"
