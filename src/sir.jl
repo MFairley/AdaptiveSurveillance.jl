@@ -1,3 +1,5 @@
+using DifferentialEquations
+
 function prevalence_cost_model_sir(τ::Float64, r::Float64, ph::Array{Float64}; max_add_t=10000)
     @assert τ <= r
     μ, I, R0, β1, γ1, ρ = ph
@@ -36,5 +38,21 @@ function sir_model!(du, u, p, t)
     du[2] = β*u[1]*u[2] - γ*u[2] - μ*u[2]
     du[3] = γ*u[2] - μ*u[3]
     du[4] = exp(- t * ρ) * u[2] # discounted infection time
+    nothing
+end
+
+function prevalance_sequence(I0, β; maxt = 10000.0)
+    cb = TerminateSteadyState(1e-8, 1e-6, DiffEqCallbacks.allDerivPass)
+    u0 = [1 - I0, I0]
+    prob = ODEProblem(si_model!, u0, (0.0, maxt), β)
+    sol = solve(prob, callback = cb)
+    endt = floor(sol.t[end])
+    return [sol(t, idxs=2) for t = 0:endt]
+end
+
+function si_model!(du, u, p, t)
+    β = p
+    du[1] = - β * u[1] * u[2]
+    du[2] = β * u[1] * u[2]
     nothing
 end
