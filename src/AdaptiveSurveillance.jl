@@ -21,6 +21,7 @@ export tpolicy_constant
 export apolicy_isotonic
 export apolicy_constant
 export arl
+export replication
 
 
 end # module

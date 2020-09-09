@@ -3,22 +3,24 @@ using DelimitedFiles
 using Distributions
 using RCall
 
-function replication(L, Γd, Γ, p0, p, n, apolicy::Function, α, tpolicy::Function, tstate; maxiters=1000)
+function replication(L, Γd, Γ::Array{Int64}, p0, p, n, apolicy::Function, α, tpolicy::Function, tstate; maxiters=1000)
     test_data = ones(maxiters, L) * -1.0
     false_alarm = true
+    z = ones(maxiters, L) * -1.0
+    thres = ones(maxiters, L) * -1.0
     for t = 1:maxiters
-        la = apolicy(L, Γd, n, α, test_data, t)
+        la, z[t, :], thres[t, :] = apolicy(L, Γd, n, α, test_data, t)
         if any(la)
             if any(t .>= Γ[la])
                 false_alarm = false
             end
-            return t, la, false_alarm, max.(0, t .- Γ)
+            return t, la, false_alarm, max.(0, t .- Γ), test_data, z, thres
         end
         l, tstate = tpolicy(test_data, t, tstate)
-        @views test_data[t, l] = sample_test_data(Γ[l], p0[l], p[l, :], n, t)
+        @views test_data[t, l] = sample_test_data(Γ[l], p0[l], p[:, l], n, t)
     end
     @warn "The maximum number of time steps, $maxiters, reached."
-    return maxiters, zeros(Bool, L), false_alarm, max.(0, maxiters .- Γ)
+    return maxiters, zeros(Bool, L), false_alarm, max.(0, maxiters .- Γ), test_data, z, thres
 end
 
 function sample_test_data(Γ, p0, p, n, t)
@@ -33,20 +35,23 @@ end
 ### ALARM POLICIES
 function apolicy_isotonic(L, Γd, n, α, test_data, t)
     la = zeros(Bool, L)
+    z = zeros(L)
+    thres = zeros(L)
     if t > 2
         for l = 1:L
-            @views z = astat_isotonic(n, test_data[1:t, l][test_data[1:t, l] .>= 0])
-            thres = logccdf(Γd[l], t - 1) - logcdf(Γd[l], t - 1) + log(α) - log(1 - α)
+            @views z[l] = astat_isotonic(n, test_data[1:t, l][test_data[1:t, l] .>= 0])
+            thres[l] = logccdf(Γd[l], t - 1) - logcdf(Γd[l], t - 1) + log(α) - log(1 - α)
             # the t - 1 is because the geometric distribution is the number of failures
-            if z > thres
+            if z[l] > thres[l]
                 la[l] = true
             end
         end
     end
-    return la
+    return la, z, thres
 end
 
 function astat_isotonic(n, location_test_data)
+    @assert all(0 .<= location_test_data .<= n)
     n_visits = length(location_test_data)
     if n_visits == 0
         return log(1)
@@ -61,9 +66,9 @@ function astat_isotonic(n, location_test_data)
 end
 
 function apolicy_constant(L, Γd, n, α, test_data, t, apolicy::Function, l)
-    la = apolicy(L, Γd, n, α, test_data, t)
+    la, z, thres = apolicy(L, Γd, n, α, test_data, t)
     la[1:L .!= l] .= false
-    return la
+    return la, z, thres
 end
 
 ### SEARCH POLICIES
@@ -77,13 +82,13 @@ end
 function arl(mode, K, L, Γd, p0, p, n, apolicy::Function, α, tpolicy::Function, tstate)
     run_lengths = zeros(K)
     if mode == 0
-        Γ = ones(L) * Inf
+        Γ = ones(Int64, L) * typemax(Int64)
     else
-        Γ = zeros(L)
+        Γ = zeros(Int64, L)
     end
+
     for k = 1:K
-        println(k)
-        run_lengths[k], _ = replication(L, Γd, Γ, p0, p, n, apolicy::Function, α, tpolicy::Function, tstate)
+        run_lengths[k], _ = replication(L, Γd, Γ, p0, p, n, apolicy, α, tpolicy, tstate)
     end
     return mean(run_lengths), median(run_lengths), var(run_lengths)
 end
