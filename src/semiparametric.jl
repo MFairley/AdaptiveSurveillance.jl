@@ -118,6 +118,27 @@ function predictive_value(eps, T, L, Γd, p0, p, n, apolicy::Function, α, tpoli
     return alarm_times
 end
 
+function predictive_value_ratio(eps, T, L, Γd, p0, p, n, apolicy::Function, α, tpolicy::Function, tstate; miniters=1000)
+    count = 0
+    alarm_times = zeros(T)
+    alarm_times_location = zeros(T)
+    i = 1
+    # converged = false
+    while i <= miniters # || !converged
+        count += 1
+        i += 1
+        Γ = rand.(Γd)
+        t, _, fa, _ = replication(L, Γd, Γ, p0, p, n, apolicy, α, tpolicy, tstate, maxiters = T + 1, warn=false)
+        if t <= T
+            alarm_times[t - 2] += 1
+            if !fa
+                alarm_times_location[t - 2] += 1
+            end
+        end
+    end
+    return alarm_times, alarm_times_location, (alarm_times_location ./ count) ./ (alarm_times ./ count)
+end
+
 function fixedΓ_alarm_distribution(K, d, l, L, Γd, Γ, p0, p, n, apolicy::Function, α, tpolicy::Function, tstate)
     time_counts = zeros(Int64, Γ + d + 1)
     Γv = ones(Int64, L) * typemax(Int64)

@@ -24,6 +24,7 @@ export arl
 export replication
 export fixedΓ_alarm_distribution
 export predictive_value
+export predictive_value_ratio
 
 
 end # module

@@ -34,3 +34,16 @@ apolicy_constant_p(L, Γd, n, α, test_data, t) = apolicy_constant(L, Γd, n, α
 # Alarm Time Distribution
 # adist = fixedΓ_alarm_distribution(K, d, 1, L, Γd, 4, p0, p, n, apolicy_constant_p, α, tpolicy_constant, 1)
 alarm_counts = predictive_value(1e-3, 52, L, Γd, p0, p, n, apolicy_constant_p, α, tpolicy_constant, 1)
+
+alarm_counts, atl, p = predictive_value_ratio(1e-3, 52, L, Γd, p0, p, n, apolicy_constant_p, α, tpolicy_constant, 1, miniters=Int(1e4))
+
+# tf = [true, false]
+# for (g1, g2, a1, a2) in Iterators.product(tf, tf, tf, tf)
+#     if a1 || a2
+#         ta = true
+#         if (a1 && !g1) || (a2 && !g2)
+#             ta = false
+#         end
+#         println("$(Int(g1)), $(Int(g2)), $(Int(a1)), $(Int(a2)), $(Int(ta))")
+#     end
+# end
