@@ -139,6 +139,32 @@ function predictive_value_ratio(eps, T, L, Γd, p0, p, n, apolicy::Function, α,
     return alarm_times, alarm_times_location, (alarm_times_location ./ count) ./ (alarm_times ./ count)
 end
 
+function alarm_density(K, T, L, Γd, Γ, p0, p, n, apolicy::Function, α, tpolicy::Function, tstate)
+    alarm_counts = zeros(T + 1)
+    for k = 1:K
+        t, _ = replication(L, Γd, Γ, p0, p, n, apolicy, α, tpolicy, tstate, maxiters = T + 1, warn=false)
+        alarm_counts[t] += 1
+    end
+    return cumsum(alarm_counts[1:T]) ./ K
+end
+
+function probability_successful_detection(K, d, l, L, Γd, Γ, p0, p, n, apolicy::Function, α, tpolicy::Function, tstate)
+    successful_detections = 0
+    post_change_alarms = 0
+    Γv = ones(Int64, L) * typemax(Int64)
+    Γv[l] = Γ
+    for k = 1:K
+        t, _, _, delays, _ = replication(L, Γd, Γv, p0, p, n, apolicy, α, tpolicy, tstate, maxiters = Γ + d + 1, warn=false)
+        if t >= Γ
+            post_change_alarms += 1
+            if delays[l] <= d
+                successful_detections += 1
+            end
+        end
+    end
+    return successful_detections, post_change_alarms
+end
+
 function fixedΓ_alarm_distribution(K, d, l, L, Γd, Γ, p0, p, n, apolicy::Function, α, tpolicy::Function, tstate)
     time_counts = zeros(Int64, Γ + d + 1)
     Γv = ones(Int64, L) * typemax(Int64)

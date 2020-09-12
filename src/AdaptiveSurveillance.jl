@@ -25,6 +25,7 @@ export replication
 export fixedΓ_alarm_distribution
 export predictive_value
 export predictive_value_ratio
-
+export alarm_density
+export probability_successful_detection
 
 end # module
