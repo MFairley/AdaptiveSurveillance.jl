@@ -1,9 +1,10 @@
 using Statistics
+using LinearAlgebra
 using DelimitedFiles
 using Distributions
 using RCall
 
-function replication(L, Γd, Γ::Array{Int64}, p0, p, n, apolicy::Function, α, tpolicy::Function, tstate; maxiters=1000)
+function replication(L, Γd, Γ::Array{Int64}, p0, p, n, apolicy::Function, α, tpolicy::Function, tstate; maxiters=1000, warn=true)
     test_data = ones(maxiters, L) * -1.0
     false_alarm = true
     z = ones(maxiters, L) * -1.0
@@ -11,7 +12,7 @@ function replication(L, Γd, Γ::Array{Int64}, p0, p, n, apolicy::Function, α, 
     for t = 1:maxiters
         la, z[t, :], thres[t, :] = apolicy(L, Γd, n, α, test_data, t)
         if any(la)
-            if any(t .>= Γ[la])
+            if all(t .>= Γ[la])
                 false_alarm = false
             end
             return t, la, false_alarm, max.(0, t .- Γ), test_data, z, thres
@@ -19,7 +20,9 @@ function replication(L, Γd, Γ::Array{Int64}, p0, p, n, apolicy::Function, α, 
         l, tstate = tpolicy(test_data, t, tstate)
         @views test_data[t, l] = sample_test_data(Γ[l], p0[l], p[:, l], n, t)
     end
-    @warn "The maximum number of time steps, $maxiters, reached."
+    if warn
+        @warn "The maximum number of time steps, $maxiters, reached."
+    end
     return maxiters, zeros(Bool, L), false_alarm, max.(0, maxiters .- Γ), test_data, z, thres
 end
 
@@ -76,7 +79,7 @@ function tpolicy_constant(test_data, t, tstate)
     return tstate, tstate
 end
 
-# to do: thomspon sampling
+# to do: thomspon sampling, EVSI method
 
 ### PERFORMANCE METRICS
 function arl(mode, K, L, Γd, p0, p, n, apolicy::Function, α, tpolicy::Function, tstate)
@@ -91,6 +94,39 @@ function arl(mode, K, L, Γd, p0, p, n, apolicy::Function, α, tpolicy::Function
         run_lengths[k], _ = replication(L, Γd, Γ, p0, p, n, apolicy, α, tpolicy, tstate)
     end
     return mean(run_lengths), median(run_lengths), var(run_lengths)
+end
+
+function predictive_value(eps, T, L, Γd, p0, p, n, apolicy::Function, α, tpolicy::Function, tstate, miniters=1000)
+    @assert T > 2
+    alarm_times = ones(T - 2, 2) # uninformative prior
+    i = 1
+    converged = false
+    while i <= miniters || !converged
+        Γ = rand.(Γd) # could do importance sampling on this but problem is that it is high dimensional
+        t, _, fa, _ = replication(L, Γd, Γ, p0, p, n, apolicy, α, tpolicy, tstate, maxiters = T, warn=false)
+        alarm_times[t - 2, Int(fa) + 1] += 1
+        if all(varbeta(alarm_times) .<= eps)
+            converged = true
+        else
+            converged = false
+        end
+        i += 1
+        if i % 10000 == 0
+            println(alarm_times)
+        end
+    end
+    return alarm_times
+end
+
+function fixedΓ_alarm_distribution(K, d, l, L, Γd, Γ, p0, p, n, apolicy::Function, α, tpolicy::Function, tstate)
+    time_counts = zeros(Int64, Γ + d + 1)
+    Γv = ones(Int64, L) * typemax(Int64)
+    Γv[l] = Γ
+    for k = 1:K
+        alarm_time, _ = replication(L, Γd, Γv, p0, p, n, apolicy, α, tpolicy, tstate, maxiters=Γ + d + 1, warn=false)
+        time_counts[alarm_time] += 1
+    end
+    return time_counts ./ K
 end
 
 # to do: plots
@@ -108,3 +144,7 @@ function write_results(L, outbreak_starts, alarm_times, location_alarms, false_a
     end
 end
 
+function varbeta(p)
+    s = sum(p, dims=2)
+    return (p[:, 1] .* p[:, 2]) ./ (abs2.(s) .* (s .+ 1))
+end

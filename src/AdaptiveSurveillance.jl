@@ -22,6 +22,8 @@ export apolicy_isotonic
 export apolicy_constant
 export arl
 export replication
+export fixedΓ_alarm_distribution
+export predictive_value
 
 
 end # module
