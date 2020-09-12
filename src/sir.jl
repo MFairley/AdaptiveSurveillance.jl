@@ -42,7 +42,7 @@ function sir_model!(du, u, p, t)
 end
 
 function prevalance_sequence(I0, β; maxt = 10000.0)
-    cb = TerminateSteadyState(1e-8, 1e-6, DiffEqCallbacks.allDerivPass)
+    cb = TerminateSteadyState(1e-4, 1e-4, DiffEqCallbacks.allDerivPass)
     u0 = [1 - I0, I0]
     prob = ODEProblem(si_model!, u0, (0.0, maxt), β)
     sol = solve(prob, callback = cb)

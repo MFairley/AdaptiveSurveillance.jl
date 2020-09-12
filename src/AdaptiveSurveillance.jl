@@ -6,14 +6,17 @@ module AdaptiveSurveillance
 include("sir.jl")
 # include("pomdp0.jl")
 # include("pomdp1.jl")
+include("semiparametric_single.jl")
 include("semiparametric.jl")
 
 # import .pomdp0
 # import .pomdp1
+import .sp_single
 
 # export prevalence_cost_model_sir
 # export pomdp0
 # export pomdp1
+export sp_single
 
 export prevalance_sequence
 export simulation
