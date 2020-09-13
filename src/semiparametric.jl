@@ -1,10 +1,12 @@
 using Statistics
-using LinearAlgebra
+using Random
 using DelimitedFiles
 using Distributions
-using RCall
+using Base.Threads
+using Isotonic
 
-function replication(L, Γd, Γ::Array{Int64}, p0, p, n, apolicy::Function, α, tpolicy::Function, tstate; maxiters=1000, warn=true)
+function replication(L, Γd, Γ::Array{Int64}, p0, p, n, apolicy::Function, α, tpolicy::Function, tstate; maxiters=1000, warn=true,
+    rng = MersenneTwister(12))
     test_data = ones(maxiters, L) * -1.0
     false_alarm = true
     z = ones(maxiters, L) * -1.0
@@ -18,21 +20,24 @@ function replication(L, Γd, Γ::Array{Int64}, p0, p, n, apolicy::Function, α, 
             return t, la, false_alarm, max.(0, t .- Γ), test_data, z, thres
         end
         l, tstate = tpolicy(test_data, t, tstate)
-        @views test_data[t, l] = sample_test_data(Γ[l], p0[l], p[:, l], n, t)
+        @views test_data[t, l] = sample_test_data(Γ[l], p0[l], p[:, l], n, rng, t)
     end
     if warn
         @warn "The maximum number of time steps, $maxiters, reached."
     end
-    return maxiters, zeros(Bool, L), false_alarm, max.(0, maxiters .- Γ), test_data, z, thres
+    if all(maxiters + 1 .>= Γ)
+        false_alarm = false
+    end
+    return maxiters + 1, ones(Bool, L), false_alarm, max.(0, (maxiters + 1) .- Γ), test_data, z, thres
 end
 
-function sample_test_data(Γ, p0, p, n, t)
+function sample_test_data(Γ, p0, p, n, rng, t)
     if t < Γ
-        return rand(Binomial(n, p0))
+        return rand(rng, Binomial(n, p0))
     elseif Γ <= t < Γ + length(p)
-        return rand(Binomial(n, p[t - Γ + 1]))
+        return rand(rng, Binomial(n, p[t - Γ + 1]))
     end
-    return rand(Binomial(n, p[end]))
+    return rand(rng, Binomial(n, p[end]))
 end
 
 ### ALARM POLICIES
@@ -43,7 +48,8 @@ function apolicy_isotonic(L, Γd, n, α, test_data, t)
     if t > 2
         for l = 1:L
             @views z[l] = astat_isotonic(n, test_data[1:t, l][test_data[1:t, l] .>= 0])
-            thres[l] = logccdf(Γd[l], t - 1) - logcdf(Γd[l], t - 1) + log(α) - log(1 - α)
+            # thres[l] = logccdf(Γd[l], t - 1) - logcdf(Γd[l], t - 1) + log(α) - log(1 - α)
+            thres[l] = log(α)
             # the t - 1 is because the geometric distribution is the number of failures
             if z[l] > thres[l]
                 la[l] = true
@@ -60,7 +66,7 @@ function astat_isotonic(n, location_test_data)
         return log(1)
     end
     y = 2 * asin.(sqrt.(location_test_data ./ n))
-    ir = rcopy(R"isotone::gpava(y = $y)"[:x])
+    ir = isotonic_regression!(y)
     piso = sin.(ir ./ 2).^2
     pcon = sum(location_test_data) / (n * n_visits)
     liso = sum([logpdf(Binomial(n, piso[i]), location_test_data[i]) for i = 1:n_visits])
@@ -82,6 +88,30 @@ end
 # to do: thomspon sampling, EVSI method
 
 ### PERFORMANCE METRICS
+function alarm_time_distribution(K, L, Γd, Γ, p0, p, n, apolicy::Function, α, tpolicy::Function, tstate; maxiters = 10*52, seed=12)
+    alarm_times = zeros(maxiters + 1)
+    rng = MersenneTwister(seed)
+    Threads.@threads for k = 1:K
+        t, _ = replication(L, Γd, Γ, p0, p, n, apolicy::Function, α, tpolicy::Function, tstate, maxiters=maxiters, warn=false, rng = rng)
+        alarm_times[t] += 1
+    end
+    return alarm_times
+end
+
+function probability_successfull_detection_l(K, T, d, l, L, Γd, p0, p, n, apolicy::Function, α, tpolicy::Function, tstate)
+    post_detections = zeros(T)
+    successful_detections = zeros(T)
+    for t = 1:T
+        Γ = ones(Int64, L) * typemax(Int64)
+        Γ[l] = t
+        alarm_times = alarm_time_distribution(K, L, Γd, Γ, p0, p, n, apolicy, α, tpolicy, tstate; maxiters =  t + d + 1)
+        post_detections[t] = sum(alarm_times[t:end])
+        successful_detections[t] = sum(alarm_times[t:(t + d)])
+    end
+    return successful_detections ./ post_detections
+end
+
+### old below
 function arl(mode, K, L, Γd, p0, p, n, apolicy::Function, α, tpolicy::Function, tstate)
     run_lengths = zeros(K)
     if mode == 0
