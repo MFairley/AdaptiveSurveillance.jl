@@ -33,5 +33,6 @@ export probability_successful_detection
 
 export alarm_time_distribution
 export probability_successfull_detection_l
+export tpolicy_random
 
 end # module

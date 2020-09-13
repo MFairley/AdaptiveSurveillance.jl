@@ -19,7 +19,7 @@ function replication(L, Γd, Γ::Array{Int64}, p0, p, n, apolicy::Function, α, 
             end
             return t, la, false_alarm, max.(0, t .- Γ), test_data, z, thres
         end
-        l, tstate = tpolicy(test_data, t, tstate)
+        l, tstate = tpolicy(rng, test_data, t, tstate)
         @views test_data[t, l] = sample_test_data(Γ[l], p0[l], p[:, l], n, rng, t)
     end
     if warn
@@ -62,7 +62,7 @@ end
 function astat_isotonic(n, location_test_data)
     @assert all(0 .<= location_test_data .<= n)
     n_visits = length(location_test_data)
-    if n_visits == 0
+    if n_visits < 2
         return log(1)
     end
     y = 2 * asin.(sqrt.(location_test_data ./ n))
@@ -81,8 +81,13 @@ function apolicy_constant(L, Γd, n, α, test_data, t, apolicy::Function, l)
 end
 
 ### SEARCH POLICIES
-function tpolicy_constant(test_data, t, tstate)
+function tpolicy_constant(rng, test_data, t, tstate)
     return tstate, tstate
+end
+
+function tpolicy_random(rng, test_data, t, tstate)
+    L = size(test_data, 2)
+    return rand(1:L), tstate # using rng here is apparently not threadsafe
 end
 
 # to do: thomspon sampling, EVSI method
