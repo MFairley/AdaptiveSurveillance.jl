@@ -99,7 +99,7 @@ function tpolicy_constant(L, n, α, tstate, rng, test_data, locations_visited, n
 end
 
 function tpolicy_random(L, n, α, tstate, rng, test_data, locations_visited, ntimes_visisted, z, w, t)
-    return rand(1:L) # using rng breaks multi-threading here
+    return rand(rng, 1:L) # using rng breaks multi-threading here, to do: file github issue for this
 end
 
 struct tstate_thompson
@@ -143,11 +143,11 @@ end
 ### PERFORMANCE METRICS
 function alarm_time_distribution(K, L, Γd, Γ, p0, p, n, apolicy::Function, α, tpolicy::Function, tstate; maxiters = 10*52, seed=12)
     alarm_times = zeros(maxiters + 1)
-    rngd = MersenneTwister(seed)
-    rngt = MersenneTwister(seed)
+    rngd = [MersenneTwister(seed + i) for i = 1:Threads.nthreads()]
+    rngt = [MersenneTwister(seed + 1 + i) for i = 1:Threads.nthreads()]
     Threads.@threads for k = 1:K
         t, _ = replication(L, Γd, Γ, p0, p, n, apolicy::Function, α, tpolicy::Function, tstate, maxiters=maxiters, warn=false,
-            rngd = rngd, rngt = rngt)
+            rngd = rngd[Threads.threadid()], rngt = rngt[Threads.threadid()])
         alarm_times[t] += 1
     end
     return alarm_times
