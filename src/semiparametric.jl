@@ -122,6 +122,7 @@ end
 
 struct tstate_evsi
     n_samples::Int64
+    initialized::Array{Bool}
     mcmc_samples::Array{Float64, 3}
     beta_parameters::Array{Float64, 2}
 end
@@ -136,20 +137,20 @@ end
     end
 end
 
-function logistic_samples!(tstate, test_data, locations_visisted, t, l)
-    positive_counts = @view(test_data[1:t, l][locations_visited[1:(t-1)] .== l])
-    test_times = 1:(t-1)[locations_visited[1:(t-1)] .== l]
-    chain = sample(rng, logistic_regression(n, positive_counts, test_times), HMC(), tstate.n_samples) # optimize later
+function logistic_samples!(n, tstate, rng, test_data, locations_visited, t, l)
+    positive_counts = @view(test_data[1:(t-1), l][locations_visited[1:(t-1)] .== l])
+    test_times = collect(1:(t-1))[locations_visited[1:(t-1)] .== l]
+    chain = sample(rng, logistic_regression(n, positive_counts, test_times), HMC(0.05, 10), tstate.n_samples, progress=false) # optimize later
     tstate.mcmc_samples[:, 1, l] = chain[:p0]
     tstate.mcmc_samples[:, 2, l] = chain[:β]
     tstate.mcmc_samples[:, 3, l] = chain[:start_time]
 end
 
 function logistic_projection(tstate, t, l)
-    p0 = mcmc_samples[:, 1, l]
-    β =  mcmc_samples[:, 2, l]
-    start_time = mcmc_samples[:, 3, l]
-    p = logistic.(-β .* (t .- start_time) .+ log(1 ./ p0 .- 1))
+    p0 = tstate.mcmc_samples[:, 1, l]
+    β =  tstate.mcmc_samples[:, 2, l]
+    start_time = tstate.mcmc_samples[:, 3, l]
+    p = logistic.(-β .* (t .- start_time) .+ log.(1 ./ p0 .- 1))
     return p
 end
 
@@ -162,8 +163,9 @@ function tpolicy_evsi(L, n, astat, α, tstate, rng, test_data, locations_visited
     probability_alarm = zeros(L) # estimated probability that the location will cause an alarm if tested next
     if t > 2 * L # warmup
         for l = 1:L
-            if locations_visited[t - 1] == l # update samples for last location visisted
-                logistic_samples!(tstate, test_data, locations_visisted, t, l)
+            if (locations_visited[t - 1] == l) || (!tstate.initialized[l]) # update samples for last location visisted
+                logistic_samples!(n, tstate, rng, test_data, locations_visited, t, l)
+                tstate.initialized[l] = true
             end
             d = Beta(tstate.beta_parameters[l, 1], tstate.beta_parameters[l, 2])
             pcon = rand(rng, d, tstate.n_samples)
@@ -173,8 +175,8 @@ function tpolicy_evsi(L, n, astat, α, tstate, rng, test_data, locations_visited
                     test_data[t, l] = j # this will be overwitten later
                     locations_visited[t] = l
                     la = apolicy!(L, n, astat, α, test_data, locations_visited, ntimes_visisted, z, w, t)
-                    probability_alarm[l] += w[t - 1, l] * pdf(Binomial(n, pcon[i], j) * (la == l) / tstate.n_samples
-                    probability_alarm[l] += (1 - w[t - 1, l]) * pdf(Binomial(n, piso[i], j) * (la == l) / tstate.n_samples
+                    probability_alarm[l] += w[t - 1, l] * pdf(Binomial(n, pcon[i]), j) * (la == l) / tstate.n_samples
+                    probability_alarm[l] += (1 - w[t - 1, l]) * pdf(Binomial(n, piso[i]), j) * (la == l) / tstate.n_samples
                 end
             end
         end
