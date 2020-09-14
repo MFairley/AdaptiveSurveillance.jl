@@ -30,11 +30,15 @@ export predictive_value
 export predictive_value_ratio
 export alarm_density
 export probability_successful_detection
+export astat_isotonic
 
 export alarm_time_distribution
 export probability_successfull_detection_l
 export tpolicy_random
 export tpolicy_thompson
 export tpolicy_evsi
+
+export tstate_thompson
+export tstate_const
 
 end # module
