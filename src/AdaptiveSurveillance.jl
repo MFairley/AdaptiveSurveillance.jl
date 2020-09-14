@@ -41,4 +41,5 @@ export tpolicy_evsi
 export tstate_thompson
 export tstate_const
 
+export tstate_evsi
 end # module

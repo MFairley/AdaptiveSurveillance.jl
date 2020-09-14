@@ -8,6 +8,8 @@ using StatsFuns
 using DataFrames
 using GLM
 using StatsBase
+using Turing
+# Turing.setadbackend(:reverse_diff)
 
 function replication(L, Γd, Γ::Array{Int64}, p0, p, n, astat::Function, α, tpolicy::Function, tstate; maxiters=1000, warn=true,
     rngd = MersenneTwister(1), rngt = MersenneTwister(2))
@@ -22,7 +24,7 @@ function replication(L, Γd, Γ::Array{Int64}, p0, p, n, astat::Function, α, tp
     z = ones(maxiters, L) * -1.0 # alarm statistic
     w = ones(maxiters, L) * -1.0 # posterior probability of states
     for t = 1:maxiters
-        l = tpolicy(L, n, α, tstate, rngd, test_data, locations_visited, ntimes_visisted, z, w, t)
+        l = tpolicy(L, n, astat, α, tstate, rngd, test_data, locations_visited, ntimes_visisted, z, w, t)
         locations_visited[t] = l
         ntimes_visisted[t, l] += 1 + ntimes_visisted[max(1, t - 1), l]
         @views test_data[t, l] = sample_test_data(Γ[l], p0[l], p[:, l], n, rngt, t)
@@ -94,11 +96,11 @@ struct tstate_const
     l::Int64
 end
 
-function tpolicy_constant(L, n, α, tstate, rng, test_data, locations_visited, ntimes_visisted, z, w, t)
+function tpolicy_constant(L, n, astat, α, tstate, rng, test_data, locations_visited, ntimes_visisted, z, w, t)
     return tstate.l
 end
 
-function tpolicy_random(L, n, α, tstate, rng, test_data, locations_visited, ntimes_visisted, z, w, t)
+function tpolicy_random(L, n, astat, α, tstate, rng, test_data, locations_visited, ntimes_visisted, z, w, t)
     return rand(rng, 1:L) # using rng breaks multi-threading here, to do: file github issue for this
 end
 
@@ -106,7 +108,7 @@ struct tstate_thompson
     beta_parameters::Array{Float64, 2}
 end
 
-function tpolicy_thompson(L, n, α, tstate, rng, test_data, locations_visited, ntimes_visisted, z, w, t)
+function tpolicy_thompson(L, n, astat, α, tstate, rng, test_data, locations_visited, ntimes_visisted, z, w, t)
     if t > 1
         l = locations_visited[t - 1] # last location visisted
         tstate.beta_parameters[l, 1] += test_data[t - 1, l]
@@ -118,27 +120,68 @@ function tpolicy_thompson(L, n, α, tstate, rng, test_data, locations_visited, n
     return argmax(s)
 end
 
-# function tpolicy_evsi(L, n, α, tstate, rng, test_data, locations_visited, ntimes_visisted, z, w, t)
-#     prep_a = zeros(L)
-#     if t > 2 * L
-#         # println("pD1 = $pD1")
-#         # println("pC1 = $pC1")
-#         # println("w = $w")
-#         # calculate p next time step there is an alarm
-#         for l = 1:L
-#             ts = collect(1:t)[test_data[1:t, l] .>= 0]
-#             for i = 0:n
-#                 # println(w[l, :])
-#                 z_cand, _ = astat_isotonic(n, t + 1, vcat(ts, t + 1), vcat(test_data[1:t, l][test_data[1:t, l] .>= 0], i))
-#                 prep_a[l] += w[l, 1] * pdf(Binomial(n, pD1[l]), i) * (z_cand > log(α))
-#                 prep_a[l] += w[l, 2] * pdf(Binomial(n, pC1[l]), i) * (z_cand > log(α))
-#             end
-#         end
-#         # println("prep_a = $prep_a")
-#         return sample(1:L, weights(prep_a)), tstate # sampling helps with exploration
-#     end
-#     return Int(ceil(t / 2)), tstate
-# end
+struct tstate_evsi
+    n_samples::Int64
+    mcmc_samples::Array{Float64, 3}
+    beta_parameters::Array{Float64, 2}
+end
+
+@model logistic_regression(n, positive_counts, test_times) = begin
+    start_time ~ Uniform(1, test_times[end])
+    p0 ~ Beta(1, 10) # somewhat strong prior that initital prevalance is low
+    β ~ Gamma(0.1, 10) # be careful about this prior since using different parametrization
+    for (i, t) in enumerate(test_times)
+        p = logistic(-β * (t - start_time) + log(1 / p0 - 1)) # change to binomialogit
+        positive_counts[i] ~ Binomial(n, p)
+    end
+end
+
+function logistic_samples!(tstate, test_data, locations_visisted, t, l)
+    positive_counts = @view(test_data[1:t, l][locations_visited[1:(t-1)] .== l])
+    test_times = 1:(t-1)[locations_visited[1:(t-1)] .== l]
+    chain = sample(rng, logistic_regression(n, positive_counts, test_times), HMC(), tstate.n_samples) # optimize later
+    tstate.mcmc_samples[:, 1, l] = chain[:p0]
+    tstate.mcmc_samples[:, 2, l] = chain[:β]
+    tstate.mcmc_samples[:, 3, l] = chain[:start_time]
+end
+
+function logistic_projection(tstate, t, l)
+    p0 = mcmc_samples[:, 1, l]
+    β =  mcmc_samples[:, 2, l]
+    start_time = mcmc_samples[:, 3, l]
+    p = logistic.(-β .* (t .- start_time) .+ log(1 ./ p0 .- 1))
+    return p
+end
+
+function beta_update(n, tstate, test_data)
+    tstate.beta_parameters[l, 1] += test_data[t - 1, l]
+    tstate.beta_parameters[l, 2] += n - test_data[t - 1, l]
+end
+
+function tpolicy_evsi(L, n, astat, α, tstate, rng, test_data, locations_visited, ntimes_visisted, z, w, t)
+    probability_alarm = zeros(L) # estimated probability that the location will cause an alarm if tested next
+    if t > 2 * L # warmup
+        for l = 1:L
+            if locations_visited[t - 1] == l # update samples for last location visisted
+                logistic_samples!(tstate, test_data, locations_visisted, t, l)
+            end
+            d = Beta(tstate.beta_parameters[l, 1], tstate.beta_parameters[l, 2])
+            pcon = rand(rng, d, tstate.n_samples)
+            piso = logistic_projection(tstate, t, l)
+            for i = 1:tstate.n_samples
+                for j = 0:n
+                    test_data[t, l] = j # this will be overwitten later
+                    locations_visited[t] = l
+                    la = apolicy!(L, n, astat, α, test_data, locations_visited, ntimes_visisted, z, w, t)
+                    probability_alarm[l] += w[t - 1, l] * pdf(Binomial(n, pcon[i], j) * (la == l) / tstate.n_samples
+                    probability_alarm[l] += (1 - w[t - 1, l]) * pdf(Binomial(n, piso[i], j) * (la == l) / tstate.n_samples
+                end
+            end
+        end
+        return argmax(probability_alarm)
+    end
+    return Int(ceil(t / 2))
+end
 
 ### PERFORMANCE METRICS
 function alarm_time_distribution(K, L, Γd, Γ, p0, p, n, apolicy::Function, α, tpolicy::Function, tstate; maxiters = 10*52, seed=12)
@@ -146,7 +189,7 @@ function alarm_time_distribution(K, L, Γd, Γ, p0, p, n, apolicy::Function, α,
     rngd = [MersenneTwister(seed + i) for i = 1:Threads.nthreads()]
     rngt = [MersenneTwister(seed + 1 + i) for i = 1:Threads.nthreads()]
     Threads.@threads for k = 1:K
-        t, _ = replication(L, Γd, Γ, p0, p, n, apolicy::Function, α, tpolicy::Function, tstate, maxiters=maxiters, warn=false,
+        t, _ = replication(L, Γd, Γ, p0, p, n, apolicy::Function, α, tpolicy::Function, deepcopy(tstate), maxiters=maxiters, warn=false,
             rngd = rngd[Threads.threadid()], rngt = rngt[Threads.threadid()])
         alarm_times[t] += 1
     end
