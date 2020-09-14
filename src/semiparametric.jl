@@ -12,11 +12,12 @@ using Turing
 # Turing.setadbackend(:reverse_diff)
 
 function replication(L, Γd, Γ::Array{Int64}, p0, p, n, astat::Function, α, tpolicy::Function, tstate; maxiters=1000, warn=true,
-    rngd = MersenneTwister(1), rngt = MersenneTwister(2))
+    rng1 = MersenneTwister(1), 2 = MersenneTwister(2))
     @assert L == length(Γ)
     @assert L == length(Γd)
     @assert L == length(p0)
     @assert L == size(p, 2)
+    tstate = deepcopy(tstate) # this ensures that modifications to state do not affect other runs
     false_alarm = -1
     test_data = ones(maxiters, L) * -1.0
     locations_visited = zeros(Int64, maxiters)
@@ -24,10 +25,10 @@ function replication(L, Γd, Γ::Array{Int64}, p0, p, n, astat::Function, α, tp
     z = ones(maxiters, L) * -1.0 # alarm statistic
     w = ones(maxiters, L) * -1.0 # posterior probability of states
     for t = 1:maxiters
-        l = tpolicy(L, n, astat, α, tstate, rngd, test_data, locations_visited, ntimes_visisted, z, w, t)
+        l = tpolicy(L, n, astat, α, tstate, rng1, test_data, locations_visited, ntimes_visisted, z, w, t)
         locations_visited[t] = l
         ntimes_visisted[t, l] += 1 + ntimes_visisted[max(1, t - 1), l]
-        @views test_data[t, l] = sample_test_data(Γ[l], p0[l], p[:, l], n, rngt, t)
+        @views test_data[t, l] = sample_test_data(Γ[l], p0[l], p[:, l], n, rng2, t)
 
         la = apolicy!(L, n, astat, α, test_data, locations_visited, ntimes_visisted, z, w, t)
         if la > 0
@@ -58,12 +59,8 @@ end
 function apolicy!(L, n, astat::Function, α, test_data, locations_visited, ntimes_visisted, z, w, t)
     la = 0
     for l = 1:L
-        # println(ntimes_visisted[1:t,:])
-        # println(locations_visited[1:t])
-        # println(test_data[1:t, :])
         if ntimes_visisted[t, l] > 2
             if locations_visited[t] == l
-                # println(l)
                 z[t, l], w[t, l] = astat(n, @view(test_data[1:t, l][locations_visited[1:t] .== l]))
                 la = z[t, l] > log(α) ? l : 0
             else
@@ -79,7 +76,6 @@ end
 
 ### ALARM STATISTICS
 function astat_isotonic(n, positive_counts)
-    # println(positive_counts)
     @assert all(0 .<= positive_counts .<= n)
     n_visits = length(positive_counts)
     y = 2 * asin.(sqrt.(positive_counts ./ n))
@@ -188,11 +184,11 @@ end
 ### PERFORMANCE METRICS
 function alarm_time_distribution(K, L, Γd, Γ, p0, p, n, apolicy::Function, α, tpolicy::Function, tstate; maxiters = 10*52, seed=12)
     alarm_times = zeros(maxiters + 1)
-    rngd = [MersenneTwister(seed + i) for i = 1:Threads.nthreads()]
-    rngt = [MersenneTwister(seed + 1 + i) for i = 1:Threads.nthreads()]
+    rng1 = [MersenneTwister(seed + i) for i = 1:Threads.nthreads()]
+    rng2 = [MersenneTwister(seed + 1 + i) for i = 1:Threads.nthreads()]
     Threads.@threads for k = 1:K
-        t, _ = replication(L, Γd, Γ, p0, p, n, apolicy::Function, α, tpolicy::Function, deepcopy(tstate), maxiters=maxiters, warn=false,
-            rngd = rngd[Threads.threadid()], rngt = rngt[Threads.threadid()])
+        t, _ = replication(L, Γd, Γ, p0, p, n, apolicy::Function, α, tpolicy::Function, tstate, maxiters=maxiters, warn=false,
+            rng1 = rng1[Threads.threadid()], rng2 = rng2[Threads.threadid()])
         alarm_times[t] += 1
     end
     return alarm_times
