@@ -4,6 +4,10 @@ using DelimitedFiles
 using Distributions
 using Base.Threads
 using Isotonic
+using StatsFuns
+using DataFrames
+using GLM
+using StatsBase
 
 function replication(L, Γd, Γ::Array{Int64}, p0, p, n, apolicy::Function, α, tpolicy::Function, tstate; maxiters=1000, warn=true,
     rng = MersenneTwister(12))
@@ -11,15 +15,16 @@ function replication(L, Γd, Γ::Array{Int64}, p0, p, n, apolicy::Function, α, 
     false_alarm = true
     z = ones(maxiters, L) * -1.0
     thres = ones(maxiters, L) * -1.0
+    l = 1
     for t = 1:maxiters
-        la, z[t, :], thres[t, :] = apolicy(L, Γd, n, α, test_data, t)
+        la, z[t, :], thres[t, :], w, pD1, pC1 = apolicy(L, Γd, n, α, test_data, t)
         if any(la)
             if all(t .>= Γ[la])
                 false_alarm = false
             end
             return t, la, false_alarm, max.(0, t .- Γ), test_data, z, thres
         end
-        l, tstate = tpolicy(rng, test_data, t, tstate)
+        l, tstate = tpolicy(rng, L, n, l, test_data, t, tstate, w, pD1, pC1, α)
         @views test_data[t, l] = sample_test_data(Γ[l], p0[l], p[:, l], n, rng, t)
     end
     if warn
@@ -45,33 +50,73 @@ function apolicy_isotonic(L, Γd, n, α, test_data, t)
     la = zeros(Bool, L)
     z = zeros(L)
     thres = zeros(L)
+    w = ones(L, 2) * 0.5
+    pD1 = zeros(L)
+    pC1 = zeros(L)
     if t > 2
         for l = 1:L
-            @views z[l] = astat_isotonic(n, test_data[1:t, l][test_data[1:t, l] .>= 0])
+            ts = collect(1:t)[test_data[1:t, l] .>= 0]
+            z[l], w[l, :], pD1[l], pC1[l] = astat_isotonic(n, t, ts, @view(test_data[1:t, l][test_data[1:t, l] .>= 0]), print=true)
+            
             # thres[l] = logccdf(Γd[l], t - 1) - logcdf(Γd[l], t - 1) + log(α) - log(1 - α)
             thres[l] = log(α)
             # the t - 1 is because the geometric distribution is the number of failures
             if z[l] > thres[l]
                 la[l] = true
             end
+            println(test_data[1:t, l][test_data[1:t, l] .>= 0])
         end
+        # println("$t : $pD1")
+        
+        println("$t : $pC1")
     end
-    return la, z, thres
+    return la, z, thres, w, pD1, pC1
 end
 
-function astat_isotonic(n, location_test_data)
+function astat_isotonic(n, t, times, location_test_data; print=false)
     @assert all(0 .<= location_test_data .<= n)
     n_visits = length(location_test_data)
     if n_visits < 2
-        return log(1)
+        return log(1), [0.5, 0.5], 0.0, 0.0
     end
+    
+    # fit a logistic curve instead - could have some error associated with it
+    
+    # piso = predict(logit)
+    # println(logit)
+    # println(data)
+    # println(piso)
+    
+
+    # estimate piso using logistic regression
+    # data = DataFrame(t = time_steps, count = location_test_data)
+    # logit = glm(@formula(t ~ count), data, Binomial(), LogitLink())
     y = 2 * asin.(sqrt.(location_test_data ./ n))
-    ir = isotonic_regression!(y)
+    ir = isotonic_regression!(y) # could consider replacing with logistic regression
     piso = sin.(ir ./ 2).^2
+
+    data = DataFrame(t=times, ps=piso)
+    logit = glm(@formula(ps ~ t), data, Binomial(), LogitLink())
+    if print
+        println(data)
+    end
+    new_data = DataFrame(t=[t])
+
+
     pcon = sum(location_test_data) / (n * n_visits)
     liso = sum([logpdf(Binomial(n, piso[i]), location_test_data[i]) for i = 1:n_visits])
     lcon = sum([logpdf(Binomial(n, pcon), location_test_data[i]) for i = 1:n_visits])
-    return liso - lcon
+
+    # # return projected piso for next timestep using exponential regression
+    # beta = cov(1:n_visits, log.(piso .+ 1e-3)) / var(1:n_visits)
+    # alpha = mean(log.(piso .+ 1e-3)) - beta * mean(1:n_visits)
+    # piso_tp1 = min(exp(alpha + beta * (n_visits + 1)), 1.0)
+    
+    # println(piso_tp1) # issue when estimate is 0.0, add some eps, also consider fitting a logit model
+    # println(piso)
+    # println(location_test_data)
+    # println(Float64(predict(logit, new_data)[1]))
+    return liso - lcon, softmax([lcon, liso]), pcon, predict(logit, new_data)[1]
 end
 
 function apolicy_constant(L, Γd, n, α, test_data, t, apolicy::Function, l)
@@ -81,13 +126,45 @@ function apolicy_constant(L, Γd, n, α, test_data, t, apolicy::Function, l)
 end
 
 ### SEARCH POLICIES
-function tpolicy_constant(rng, test_data, t, tstate)
+function tpolicy_constant(rng, L, n, l, test_data, t, tstate, w, pD1, pC1, α)
     return tstate, tstate
 end
 
-function tpolicy_random(rng, test_data, t, tstate)
-    L = size(test_data, 2)
+function tpolicy_random(rng, L, n, l, test_data, t, tstate, w, pD1, pC1, α)
     return rand(1:L), tstate # using rng here is apparently not threadsafe
+end
+
+function tpolicy_thompson(rng, L, n, l, test_data, t, tstate, w, pD1, pC1, α)
+    if t > 1
+        @assert test_data[t-1, l] >= 0
+        tstate[l, 1] += test_data[t-1, l]
+        tstate[l, 2] += n - test_data[t-1, l]
+    end
+    d = [Beta(tstate[l, 1], tstate[l, 2]) for l = 1:size(tstate, 1)]
+    s = rand.(d)
+    return argmax(s), tstate
+end
+
+function tpolicy_evsi(rng, L, n, l, test_data, t, tstate, w, pD1, pC1, α)
+    prep_a = zeros(L)
+    if t > 2 * L
+        # println("pD1 = $pD1")
+        # println("pC1 = $pC1")
+        # println("w = $w")
+        # calculate p next time step there is an alarm
+        for l = 1:L
+            ts = collect(1:t)[test_data[1:t, l] .>= 0]
+            for i = 0:n
+                # println(w[l, :])
+                z_cand, _ = astat_isotonic(n, t + 1, vcat(ts, t + 1), vcat(test_data[1:t, l][test_data[1:t, l] .>= 0], i))
+                prep_a[l] += w[l, 1] * pdf(Binomial(n, pD1[l]), i) * (z_cand > log(α))
+                prep_a[l] += w[l, 2] * pdf(Binomial(n, pC1[l]), i) * (z_cand > log(α))
+            end
+        end
+        # println("prep_a = $prep_a")
+        return sample(1:L, weights(prep_a)), tstate # sampling helps with exploration
+    end
+    return Int(ceil(t / 2)), tstate
 end
 
 # to do: thomspon sampling, EVSI method
