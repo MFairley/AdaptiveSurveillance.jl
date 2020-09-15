@@ -2,6 +2,9 @@ using Random
 using StatsFuns
 using Plots
 using Turing
+using Convex
+using Mosek
+using MosekTools
 # True parameters
 const β_true = 0.015008
 const p0_true = 0.01
@@ -32,6 +35,7 @@ const positive_counts = [1.0, 1.0, 1.0, 2.0, 4.0, 4.0, 3.0, 2.0, 2.0, 2.0, 0.0, 
 const test_times = collect(0.0:1.0:299.0)
 
 p_log_true = max.(p0_true, logistic.(-(-β_true .* (test_times .- Γ_true) .+ log(1 / p0_true - 1)))) # convex
+p_log_approx = logistic.(-(-β_true .* (test_times .- Γ_true) .+ log(1 / p0_true - 1))) # convex
 
 # Model
 @model logistic_epidemic(n, positive_counts, test_times) = begin
@@ -58,12 +62,36 @@ end
 # chain = sample(logistic_epidemic_simple(n, positive_counts, test_times), NUTS(1000, 0.95), 4000)
 
 # advi = ADVI(10, 1000)
-# q = vi(logistic_epidemic_simple(n, positive_counts, test_times), advi)
+# q = vi(logistic_epidemic(n, positive_counts, test_times), advi)
 # also try laplace approximation
 
 # Simple linear regression
-# yas = 2 * asin.(sqrt.(positive_counts ./ n))
-# β_lr = cov(test_times, log.(1 .+ yas)) / var(test_times)
-# α_lr = mean(log.(1 .+ yas)) - β_lr  * mean(test_times)
+yas = 2 * asin.(sqrt.(positive_counts ./ n))
+β_lr = cov(test_times, log.(1 .+ yas)) / var(test_times)
+α_lr = mean(log.(1 .+ yas)) - β_lr  * mean(test_times)
 
-# p_lr = sin.((exp.(β_lr .* test_times .+ α_lr ) .- 1) ./ 2).^2
+p_lr = sin.((exp.(β_lr .* test_times .+ α_lr ) .- 1) ./ 2).^2
+
+plot(hcat(p_lr, p_log_true, p_log_approx), label = ["Linear" "True" "Logistic Approximation"])
+
+# convex optimization to get the MLE - without max
+β_cvx = Variable()
+α_cvx = Variable()
+coef = test_times * β_cvx + α_cvx
+ls = 0
+for i = 1:length(test_times)
+    ls += (n - positive_counts[i]) * Convex.logsumexp([coef[i]; 0])
+end
+problem = maximize(dot(positive_counts, coef) -  ls) # now this works
+solve!(problem, () -> Mosek.Optimizer())
+p_cvx = logistic.(β_cvx.value .* test_times .+ α_cvx.value)
+plot(hcat(p_lr, p_log_true, p_log_approx, p_cvx), label = ["Linear" "True" "Logistic Approximation" "Logistic Convex"])
+
+# logistic likelihood function with max
+llm(b) = sum(positive_counts .* log.(max.(p0_true, logistic.(test_times .* b))) .+ (n .- positive_counts) .* log.(1 .- max.(p0_true, logistic.(test_times .* b))))
+b_grid = -1:0.1:1
+llm_grid = zeros(length(b_grid))
+for(i, b)  in enumerate(b_grid)
+    llm_grid[i] = llm(b)
+end
+plot(b_grid, llm_grid)
