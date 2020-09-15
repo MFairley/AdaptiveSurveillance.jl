@@ -12,7 +12,7 @@ using Turing
 # Turing.setadbackend(:reverse_diff)
 
 function replication(L, Γd, Γ::Array{Int64}, p0, p, n, astat::Function, α, tpolicy::Function, tstate; maxiters=1000, warn=true,
-    rng1 = MersenneTwister(1), 2 = MersenneTwister(2))
+    rng1 = MersenneTwister(1), rng2 = MersenneTwister(2))
     @assert L == length(Γ)
     @assert L == length(Γd)
     @assert L == length(p0)
@@ -128,15 +128,16 @@ end
     p0 ~ Beta(1, 10) # somewhat strong prior that initital prevalance is low
     β ~ Gamma(0.1, 10) # be careful about this prior since using different parametrization
     for (i, t) in enumerate(test_times)
-        p = logistic(-β * (t - start_time) + log(1 / p0 - 1)) # change to binomialogit
-        positive_counts[i] ~ Binomial(n, p)
+        # p = logistic(-β * (t - start_time) + log(1 / p0 - 1)) # change to binomialogit
+        # positive_counts[i] ~ BinomialLogit(n, -β * (t - start_time) + log(1 / p0 - 1))
+        positive_counts[i] ~ BinomialLogit(n, -β * t)
     end
 end
 
 function logistic_samples!(n, tstate, rng, test_data, locations_visited, t, l)
     positive_counts = @view(test_data[1:(t-1), l][locations_visited[1:(t-1)] .== l])
     test_times = collect(1:(t-1))[locations_visited[1:(t-1)] .== l]
-    chain = sample(rng, logistic_regression(n, positive_counts, test_times), HMC(0.05, 10), tstate.n_samples, progress=false) # optimize later
+    chain = sample(rng, logistic_regression(n, positive_counts, test_times), HMC(0.05, 10), tstate.n_samples, progress=true) # optimize later
     tstate.mcmc_samples[:, 1, l] = chain[:p0]
     tstate.mcmc_samples[:, 2, l] = chain[:β]
     tstate.mcmc_samples[:, 3, l] = chain[:start_time]
