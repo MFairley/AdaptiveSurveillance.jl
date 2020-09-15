@@ -28,7 +28,9 @@ function replication(L, Γ::Array{Int64}, p0, p, n, astat::Function, α, tpolicy
         l = tpolicy(L, n, astat, α, tstate, rng1, test_data, locations_visited, ntimes_visisted, last_time_visited, z, w, t)
         locations_visited[t] = l
         last_time_visited[l] = t
-        ntimes_visisted[t, l] += 1 + ntimes_visisted[max(1, t - 1), l]
+        for j = 1:L
+            ntimes_visisted[t, j] += ntimes_visisted[max(1, t - 1), j] + (j == l)
+        end
         @views test_data[t, l] = sample_test_data(Γ[l], p0[l], p[:, l], n, rng2, t)
 
         la = apolicy!(L, n, astat, α, test_data, locations_visited, ntimes_visisted, z, w, t)
@@ -124,7 +126,6 @@ end
 struct tstate_evsi
     Γd # geometric distribution, cdf is for number of failures before success
     beta_parameters::Array{Float64, 2}
-    Q::Int64
     fraction_forget::Float64
 end
 
@@ -138,28 +139,29 @@ function tpolicy_evsi(L, n, astat, α, tstate, rng, test_data, locations_visited
         for l = 1:L
             t_forget = Int(ceil(tstate.fraction_forget *  (t - 1)))
             tprime = last_time_visited[l] - 1
-            pDd = w[t - 1, l] * ccdf(tstate.Γd[l], t - 1)
-            pDn = pDd + (1 - w[t - 1, l]) * cdf(tstate.Γd[l], tprime) + w[t - 1, l] * (ccdf(tstate.Γd[l], t - 1) - ccdf(tstate.Γd[l], tprime))
-            pD = pDd / pDn
-            dD = Beta(tstate.beta_parameters[l, 1], tstate.beta_parameters[l, 2])
+            
+            pDn = w[t - 1, l] * ccdf(tstate.Γd[l], t - 1)
+            pDd = (1 - w[t - 1, l]) * cdf(tstate.Γd[l], tprime) + w[t - 1, l] * (cdf(tstate.Γd[l], t - 1) - cdf(tstate.Γd[l], tprime))
+            pD = pDn / (pDn + pDd)
+            dD = BetaBinomial(n, tstate.beta_parameters[l, 1], tstate.beta_parameters[l, 2])
+            
             positive_forget = sum(test_data[t_forget:t, l][locations_visited[t_forget:t] .== l])
             tests_forget = sum(locations_visited[t_forget:t] .== l) * n
-            dC = Beta(1 + positive_forget, 1 + tests_forget - positive_forget)
+            dC = BetaBinomial(n, 1 + positive_forget, 1 + tests_forget - positive_forget)
+            
             for i = 0:n
                 test_data[t, l] = i
                 locations_visited[t] = l
                 z, _ = astat(n, @view(test_data[1:t, l][locations_visited[1:t] .== l]))
                 if z > log(α)
-                    for q in LinRange(0.0, 1.0, tstate.Q) # quantiles
-                        probability_alarm[l] += pD * pdf(dD, quantile(dD, q)) * pdf(Binomial(n, quantile(dD, q)), i)
-                        probability_alarm[l] += (1 - pD) * pdf(dC, quantile(dC, q)) * pdf(Binomial(n, quantile(dC, q)), i)
-                    end
+                    probability_alarm[l] += pD * pdf(dD, i)
+                    probability_alarm[l] += (1 - pD) * pdf(dC, i)
                 end
             end
             test_data[t, l] = -1.0
             locations_visited[t] = 0
         end
-        # println(probability_alarm)
+        println(probability_alarm)
         return argmax(probability_alarm)
     end
     return Int(ceil(t / 2))
