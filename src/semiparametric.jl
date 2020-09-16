@@ -134,6 +134,22 @@ struct tstate_evsi
     recent_beta_parameters::Array{Float64, 2}
 end
 
+struct SearchV{T, V, F} <: AbstractVector{T}
+    v::V
+    f::F
+    SearchV{T}(v::V, f::F) where {T, V, F} = new{T, V, F}(v, f)
+end
+Base.size(x::SearchV) = size(x.v)
+Base.axes(x::SearchV) = axes(x.v)
+Base.@propagate_inbounds Base.getindex(x::SearchV, I...) = x.f(x.v[I...])
+
+function check_astat(i, n, astat, α, test_data, locations_visited, l, t)
+    test_data[t, l] = i
+    locations_visited[t] = l
+    z_candidate, _ = astat(n, @views(test_data[1:t, l][locations_visited[1:t] .== l])) # this is the main bottleneck
+    return z_candidate > log(α)
+end
+
 function tpolicy_evsi(L, n, astat, α, tstate, rng, test_data, locations_visited, ntimes_visisted, last_time_visited, z, w, t)
     if t > 1
         l = locations_visited[t - 1] # last location visisted
@@ -156,17 +172,23 @@ function tpolicy_evsi(L, n, astat, α, tstate, rng, test_data, locations_visited
             dC = BetaBinomial(n, tstate.recent_beta_parameters[l, 1], tstate.recent_beta_parameters[l, 2])
             dC_int = BetaBinomial(n, 1, 1)
             
-            for i = 0:n # to do: binary search on first n 
-                test_data[t, l] = i
-                locations_visited[t] = l
-                z_candidate, _ = astat(n, @views(test_data[1:t, l][locations_visited[1:t] .== l])) # this is the main bottleneck
-                if z_candidate > log(α)
+            f(i) = check_astat(i, n, astat, α, test_data, locations_visited, l, t)
+            i = searchsortedfirst(SearchV{Int}(0:n, i -> f(i)), 1) - 1 # note this returns index so need to - 1 to get count
+            # println(n_star)
+
+            # for i = 0:n # to do: binary search on first n 
+                # test_data[t, l] = i
+                # locations_visited[t] = l
+                # z_candidate, _ = astat(n, @views(test_data[1:t, l][locations_visited[1:t] .== l])) # this is the main bottleneck
+                # if z_candidate > log(α)
                     # println("location: $l, sample size: $i")
                     probability_alarm[l] += pD *  ccdf(dD, i - 1)
                     probability_alarm[l] += (1 - pD) * (prior_change * ccdf(dC, i - 1) + prior_int_change * ccdf(dC_int, i - 1))
-                    break
-                end
-            end
+                    # println(i)
+                    # break
+                    
+                # end
+            # end
             test_data[t, l] = -1.0
             locations_visited[t] = 0
         end
