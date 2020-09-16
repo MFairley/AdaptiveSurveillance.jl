@@ -107,15 +107,20 @@ struct tstate_thompson
     beta_parameters::Array{Float64, 2}
 end
 
-function beta_update(n, tstate, test_data, l, t)
-    tstate.beta_parameters[l, 1] += test_data[t - 1, l]
-    tstate.beta_parameters[l, 2] += n - test_data[t - 1, l]
+function beta_update(n, beta_parameters, test_data, l, t; accumulate = true)
+    if accumulate
+        beta_parameters[l, 1] += test_data[t - 1, l]
+        beta_parameters[l, 2] += n - test_data[t - 1, l]
+    else
+        beta_parameters[l, 1] = 1 + test_data[t - 1, l]
+        beta_parameters[l, 2] = 1 + n - test_data[t - 1, l]
+    end
 end
 
 function tpolicy_thompson(L, n, astat, α, tstate, rng, test_data, locations_visited, ntimes_visisted, last_time_visited, z, w, t)
     if t > 1
         l = locations_visited[t - 1] # last location visisted
-        beta_update(n, tstate, test_data, l, t)
+        beta_update(n, tstate.beta_parameters, test_data, l, t)
     end
     d = [Beta(tstate.beta_parameters[l, 1], tstate.beta_parameters[l, 2]) for l = 1:L]
     s = rand.(rng, d)
@@ -126,38 +131,39 @@ end
 struct tstate_evsi
     Γd::Array{Geometric{Float64},1} # geometric distribution, cdf is for number of failures before success
     beta_parameters::Array{Float64, 2}
-    fraction_forget::Float64
+    recent_beta_parameters::Array{Float64, 2}
 end
 
 function tpolicy_evsi(L, n, astat, α, tstate, rng, test_data, locations_visited, ntimes_visisted, last_time_visited, z, w, t)
     if t > 1
         l = locations_visited[t - 1] # last location visisted
-        beta_update(n, tstate, test_data, l, t)
+        beta_update(n, tstate.beta_parameters, test_data, l, t)
+        beta_update(n, tstate.recent_beta_parameters, test_data, l, t, accumulate = false)
     end
     probability_alarm = zeros(L) # estimated probability that the location will cause an alarm if tested next
     if t > 2 * L # warmup
         for l = 1:L
-            t_forget = Int(ceil(tstate.fraction_forget *  (t - 1))) # change to a fixed number of time steps
-            tprime = last_time_visited[l] - 1
+            tprime = last_time_visited[l] # last time we checked location
+            prior_change = cdf(tstate.Γd[l], tprime - 1) # changed during data collection
+            prior_int_change = cdf(tstate.Γd[l], t - 1) - cdf(tstate.Γd[l], tprime - 1) # changed since data collection
+            prior_no_change = ccdf(tstate.Γd[l], t - 1) # has not changed yet
             
-            pDn = w[t - 1, l] * ccdf(tstate.Γd[l], t - 1)
-            pDd = (1 - w[t - 1, l]) * cdf(tstate.Γd[l], tprime) + w[t - 1, l] * (cdf(tstate.Γd[l], t - 1) - cdf(tstate.Γd[l], tprime))
+            pDn = w[t - 1, l] * prior_no_change
+            pDd = (1 - w[t - 1, l]) * prior_change + w[t - 1, l] * prior_int_change
             pD = pDn / (pDn + pDd)
             dD = BetaBinomial(n, tstate.beta_parameters[l, 1], tstate.beta_parameters[l, 2])
             
-            # @views positive_forget = sum(test_data[t_forget:t, l][locations_visited[t_forget:t] .== l])
-            # @views tests_forget = sum(locations_visited[t_forget:t] .== l) * n
-            dC = BetaBinomial(n, 1, 1)
+            dC = BetaBinomial(n, tstate.recent_beta_parameters[l, 1], tstate.recent_beta_parameters[l, 2])
+            dC_int = BetaBinomial(n, 1, 1)
             
             for i = 0:n # to do: binary search on first n 
                 test_data[t, l] = i
                 locations_visited[t] = l
                 z_candidate, _ = astat(n, @views(test_data[1:t, l][locations_visited[1:t] .== l])) # this is the main bottleneck
-                # z_candidate = log(1001)
                 if z_candidate > log(α)
                     # println("location: $l, sample size: $i")
-                    probability_alarm[l] += pD *  ccdf(dD, i - 1) #(isnan(pdf(dD, i)) ? 0.0 : pdf(dD, i))
-                    probability_alarm[l] += (1 - pD) * ccdf(dC, i - 1)#(isnan(pdf(dC, i)) ? 0.0 : pdf(dC, i))
+                    probability_alarm[l] += pD *  ccdf(dD, i - 1)
+                    probability_alarm[l] += (1 - pD) * (prior_change * ccdf(dC, i - 1) + prior_int_change * ccdf(dC_int, i - 1))
                     break
                 end
             end
