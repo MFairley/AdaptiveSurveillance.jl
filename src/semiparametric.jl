@@ -81,12 +81,12 @@ end
 function astat_isotonic(n, positive_counts)
     # @assert all(0 .<= positive_counts .<= n)
     n_visits = length(positive_counts)
+    pcon = sum(positive_counts) / (n * n_visits)
+    lcon = sum(logpdf(Binomial(n, pcon), positive_counts[i]) for i = 1:n_visits)
     y = 2 * asin.(sqrt.(positive_counts ./ n))
     ir = isotonic_regression!(y)
     piso = sin.(ir ./ 2).^2
-    pcon = sum(positive_counts) / (n * n_visits)
     liso = sum(logpdf(Binomial(n, piso[i]), positive_counts[i]) for i = 1:n_visits)
-    lcon = sum(logpdf(Binomial(n, pcon), positive_counts[i]) for i = 1:n_visits)
     return liso - lcon, softmax([lcon, liso])[1]
 end
 
@@ -137,7 +137,7 @@ function tpolicy_evsi(L, n, astat, α, tstate, rng, test_data, locations_visited
     probability_alarm = zeros(L) # estimated probability that the location will cause an alarm if tested next
     if t > 2 * L # warmup
         for l = 1:L
-            t_forget = Int(ceil(tstate.fraction_forget *  (t - 1)))
+            t_forget = Int(ceil(tstate.fraction_forget *  (t - 1))) # change to a fixed number of time steps
             tprime = last_time_visited[l] - 1
             
             pDn = w[t - 1, l] * ccdf(tstate.Γd[l], t - 1)
@@ -145,14 +145,14 @@ function tpolicy_evsi(L, n, astat, α, tstate, rng, test_data, locations_visited
             pD = pDn / (pDn + pDd)
             dD = BetaBinomial(n, tstate.beta_parameters[l, 1], tstate.beta_parameters[l, 2])
             
-            @views positive_forget = sum(test_data[t_forget:t, l][locations_visited[t_forget:t] .== l])
-            @views tests_forget = sum(locations_visited[t_forget:t] .== l) * n
-            dC = BetaBinomial(n, 1 + positive_forget, 1 + tests_forget - positive_forget)
+            # @views positive_forget = sum(test_data[t_forget:t, l][locations_visited[t_forget:t] .== l])
+            # @views tests_forget = sum(locations_visited[t_forget:t] .== l) * n
+            dC = BetaBinomial(n, 1, 1)
             
-            for i = 0:n # to do: find first n that causes switch
+            for i = 0:n # to do: binary search on first n 
                 test_data[t, l] = i
                 locations_visited[t] = l
-                z_candidate, _ = astat(n, @views(test_data[1:t, l][test_data[1:t, l] .> 0])) # this is the main bottleneck
+                z_candidate, _ = astat(n, @views(test_data[1:t, l][locations_visited[1:t] .== l])) # this is the main bottleneck
                 # z_candidate = log(1001)
                 if z_candidate > log(α)
                     # println("location: $l, sample size: $i")
@@ -184,7 +184,8 @@ function alarm_time_distribution(K, L, Γ, p0, p, n, apolicy::Function, α, tpol
     return alarm_times
 end
 
-function probability_successfull_detection_l(K, T, d, l, L, p0, p, n, apolicy::Function, α, tpolicy::Function, tstate)
+function probability_successfull_detection_l(K, T, d, l, L, p0, p, n, apolicy::Function, α, tpolicy::Function, tstate; conf_level=0.95)
+    z_score = quantile(Normal(0, 1), 1 - (1 - conf_level)/2)
     post_detections = zeros(T)
     successful_detections = zeros(T)
     for t = 1:T
@@ -194,5 +195,7 @@ function probability_successfull_detection_l(K, T, d, l, L, p0, p, n, apolicy::F
         post_detections[t] = sum(alarm_times[t:end])
         successful_detections[t] = sum(alarm_times[t:(t + d)])
     end
-    return successful_detections ./ post_detections
+    psd = successful_detections ./ post_detections
+    hw = z_score .* sqrt.(psd .* (1 .- psd) ./ post_detections)
+    return psd, hw
 end
