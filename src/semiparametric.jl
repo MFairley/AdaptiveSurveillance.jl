@@ -31,14 +31,14 @@ function replication(L, Γ::Array{Int64}, p0, p, n, astat::Function, α, tpolicy
         for j = 1:L
             ntimes_visisted[t, j] += ntimes_visisted[max(1, t - 1), j] + (j == l)
         end
-        @views test_data[t, l] = sample_test_data(Γ[l], p0[l], p[:, l], n, rng2, t)
+        test_data[t, l] = sample_test_data(Γ[l], p0[l], @view(p[:, l]), n, rng2, t)
 
         la = apolicy!(L, n, astat, α, test_data, locations_visited, ntimes_visisted, z, w, t)
         if la > 0
             if t >= Γ[la]
                 false_alarm = 0
             end
-            return t, la, false_alarm, max.(0, t .- Γ), test_data, locations_visited, ntimes_visisted, z, w
+            return t, la, false_alarm, max.(0, t .- Γ), test_data, locations_visited, ntimes_visisted, last_time_visited, z, w
         end
     end
     if warn
@@ -47,7 +47,7 @@ function replication(L, Γ::Array{Int64}, p0, p, n, astat::Function, α, tpolicy
     if all(maxiters + 1 .>= Γ)
         false_alarm = 0
     end
-    return maxiters + 1, -1, false_alarm, max.(0, (maxiters + 1) .- Γ), test_data, locations_visited, ntimes_visisted, z, w
+    return maxiters + 1, -1, false_alarm, max.(0, (maxiters + 1) .- Γ), test_data, locations_visited, ntimes_visisted, last_time_visited, z, w
 end
 
 function sample_test_data(Γ, p0, p, n, rng, t)
@@ -64,7 +64,7 @@ function apolicy!(L, n, astat::Function, α, test_data, locations_visited, ntime
     for l = 1:L
         if ntimes_visisted[t, l] > 2
             if locations_visited[t] == l
-                z[t, l], w[t, l] = astat(n, @view(test_data[1:t, l][locations_visited[1:t] .== l]))
+                z[t, l], w[t, l] = astat(n, @views(test_data[1:t, l][locations_visited[1:t] .== l]))
                 la = z[t, l] > log(α) ? l : 0
             else
                 z[t, l], w[t, l] = z[t - 1, l], w[t - 1, l]
@@ -79,14 +79,14 @@ end
 
 ### ALARM STATISTICS
 function astat_isotonic(n, positive_counts)
-    @assert all(0 .<= positive_counts .<= n)
+    # @assert all(0 .<= positive_counts .<= n)
     n_visits = length(positive_counts)
     y = 2 * asin.(sqrt.(positive_counts ./ n))
     ir = isotonic_regression!(y)
     piso = sin.(ir ./ 2).^2
     pcon = sum(positive_counts) / (n * n_visits)
-    liso = sum([logpdf(Binomial(n, piso[i]), positive_counts[i]) for i = 1:n_visits])
-    lcon = sum([logpdf(Binomial(n, pcon), positive_counts[i]) for i = 1:n_visits])
+    liso = sum(logpdf(Binomial(n, piso[i]), positive_counts[i]) for i = 1:n_visits)
+    lcon = sum(logpdf(Binomial(n, pcon), positive_counts[i]) for i = 1:n_visits)
     return liso - lcon, softmax([lcon, liso])[1]
 end
 
@@ -124,7 +124,7 @@ function tpolicy_thompson(L, n, astat, α, tstate, rng, test_data, locations_vis
 end
 
 struct tstate_evsi
-    Γd # geometric distribution, cdf is for number of failures before success
+    Γd::Array{Geometric{Float64},1} # geometric distribution, cdf is for number of failures before success
     beta_parameters::Array{Float64, 2}
     fraction_forget::Float64
 end
@@ -152,18 +152,20 @@ function tpolicy_evsi(L, n, astat, α, tstate, rng, test_data, locations_visited
             for i = 0:n # to do: find first n that causes switch
                 test_data[t, l] = i
                 locations_visited[t] = l
-                z, _ = astat(n, @view(test_data[1:t, l][locations_visited[1:t] .== l]))
-                # z = rand(Uniform(log(α) - 10, log(α) + 10))
-                if z > log(α)
-                    probability_alarm[l] += pD * (isnan(pdf(dD, i)) ? 0.0 : pdf(dD, i))
-                    probability_alarm[l] += (1 - pD) * (isnan(pdf(dC, i)) ? 0.0 : pdf(dC, i))
+                z_candidate, _ = astat(n, @views(test_data[1:t, l][test_data[1:t, l] .> 0])) # this is the main bottleneck
+                # z_candidate = log(1001)
+                if z_candidate > log(α)
+                    # println("location: $l, sample size: $i")
+                    probability_alarm[l] += pD *  ccdf(dD, i - 1) #(isnan(pdf(dD, i)) ? 0.0 : pdf(dD, i))
+                    probability_alarm[l] += (1 - pD) * ccdf(dC, i - 1)#(isnan(pdf(dC, i)) ? 0.0 : pdf(dC, i))
+                    break
                 end
             end
             test_data[t, l] = -1.0
             locations_visited[t] = 0
         end
+        # @assert all(0 .<= probability_alarm .<= 1.0) # probability need to do log probabilities
         # println(probability_alarm)
-        @assert all(0 .<= probability_alarm .<= 1.0) # probability need to do log probabilities
         return argmax(probability_alarm) 
     end
     return Int(ceil(t / 2))
