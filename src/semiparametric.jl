@@ -5,11 +5,6 @@ using Distributions
 using Base.Threads
 using Isotonic
 using StatsFuns
-using DataFrames
-using GLM
-using StatsBase
-using Turing
-# Turing.setadbackend(:reverse_diff)
 
 function replication(L, Γ::Array{Int64}, p0, p, n, astat::Function, α, tpolicy::Function, tstate; maxiters=1000, warn=true,
     rng1 = MersenneTwister(1), rng2 = MersenneTwister(2))
@@ -20,25 +15,25 @@ function replication(L, Γ::Array{Int64}, p0, p, n, astat::Function, α, tpolicy
     false_alarm = -1
     test_data = ones(maxiters, L) * -1.0
     locations_visited = zeros(Int64, maxiters)
-    ntimes_visisted = zeros(Int64, maxiters, L)
-    last_time_visited = ones(L) * -1.0
+    ntimes_visited = zeros(Int64, maxiters, L)
+    last_time_visited = ones(Int64, L) * -1
     z = ones(maxiters, L) * -1.0 # alarm statistic
     w = ones(maxiters, L) * -1.0 # posterior probability of states
     for t = 1:maxiters
-        l = tpolicy(L, n, astat, α, tstate, rng1, test_data, locations_visited, ntimes_visisted, last_time_visited, z, w, t)
+        l = tpolicy(L, n, astat, α, tstate, rng1, test_data, locations_visited, ntimes_visited, last_time_visited, z, w, t)
         locations_visited[t] = l
         last_time_visited[l] = t
         for j = 1:L
-            ntimes_visisted[t, j] += ntimes_visisted[max(1, t - 1), j] + (j == l)
+            ntimes_visited[t, j] += ntimes_visited[max(1, t - 1), j] + (j == l)
         end
         test_data[t, l] = sample_test_data(Γ[l], p0[l], @view(p[:, l]), n, rng2, t)
 
-        la = apolicy!(L, n, astat, α, test_data, locations_visited, ntimes_visisted, z, w, t)
+        la = apolicy!(L, n, astat, α, test_data, locations_visited, ntimes_visited, z, w, t)
         if la > 0
             if t >= Γ[la]
                 false_alarm = 0
             end
-            return t, la, false_alarm, max.(0, t .- Γ), test_data, locations_visited, ntimes_visisted, last_time_visited, z, w
+            return t, la, false_alarm, max.(0, t .- Γ), test_data, locations_visited, ntimes_visited, last_time_visited, z, w
         end
     end
     if warn
@@ -47,7 +42,7 @@ function replication(L, Γ::Array{Int64}, p0, p, n, astat::Function, α, tpolicy
     if all(maxiters + 1 .>= Γ)
         false_alarm = 0
     end
-    return maxiters + 1, -1, false_alarm, max.(0, (maxiters + 1) .- Γ), test_data, locations_visited, ntimes_visisted, last_time_visited, z, w
+    return maxiters + 1, -1, false_alarm, max.(0, (maxiters + 1) .- Γ), test_data, locations_visited, ntimes_visited, last_time_visited, z, w
 end
 
 function sample_test_data(Γ, p0, p, n, rng, t)
@@ -59,10 +54,10 @@ function sample_test_data(Γ, p0, p, n, rng, t)
     return rand(rng, Binomial(n, p[end]))
 end
 
-function apolicy!(L, n, astat::Function, α, test_data, locations_visited, ntimes_visisted, z, w, t)
+function apolicy!(L, n, astat::Function, α, test_data, locations_visited, ntimes_visited, z, w, t)
     la = 0
     for l = 1:L
-        if ntimes_visisted[t, l] > 2
+        if ntimes_visited[t, l] > 2
             if locations_visited[t] == l
                 z[t, l], w[t, l] = astat(n, @views(test_data[1:t, l][locations_visited[1:t] .== l]))
                 la = z[t, l] > log(α) ? l : 0
@@ -95,11 +90,11 @@ struct tstate_const
     l::Int64
 end
 
-function tpolicy_constant(L, n, astat, α, tstate, rng, test_data, locations_visited, ntimes_visisted, last_time_visited, z, w, t)
+function tpolicy_constant(L, n, astat, α, tstate, rng, test_data, locations_visited, ntimes_visited, last_time_visited, z, w, t)
     return tstate.l
 end
 
-function tpolicy_random(L, n, astat, α, tstate, rng, test_data, locations_visited, ntimes_visisted, last_time_visited, z, w, t)
+function tpolicy_random(L, n, astat, α, tstate, rng, test_data, locations_visited, ntimes_visited, last_time_visited, z, w, t)
     return rand(rng, 1:L) # using rng breaks multi-threading here, to do: file github issue for this
 end
 
@@ -117,7 +112,7 @@ function beta_update(n, beta_parameters, test_data, l, t; accumulate = true)
     end
 end
 
-function tpolicy_thompson(L, n, astat, α, tstate, rng, test_data, locations_visited, ntimes_visisted, last_time_visited, z, w, t)
+function tpolicy_thompson(L, n, astat, α, tstate, rng, test_data, locations_visited, ntimes_visited, last_time_visited, z, w, t)
     if t > 1
         l = locations_visited[t - 1] # last location visisted
         beta_update(n, tstate.beta_parameters, test_data, l, t)
@@ -147,10 +142,12 @@ function check_astat(i, n, astat, α, test_data, locations_visited, l, t)
     test_data[t, l] = i
     locations_visited[t] = l
     z_candidate, _ = astat(n, @views(test_data[1:t, l][locations_visited[1:t] .== l])) # this is the main bottleneck
+    test_data[t, l] = -1.0
+    locations_visited[t] = 0
     return z_candidate > log(α)
 end
 
-function tpolicy_evsi(L, n, astat, α, tstate, rng, test_data, locations_visited, ntimes_visisted, last_time_visited, z, w, t)
+function tpolicy_evsi(L, n, astat, α, tstate, rng, test_data, locations_visited, ntimes_visited, last_time_visited, z, w, t)
     if t > 1
         l = locations_visited[t - 1] # last location visisted
         beta_update(n, tstate.beta_parameters, test_data, l, t)
@@ -161,39 +158,35 @@ function tpolicy_evsi(L, n, astat, α, tstate, rng, test_data, locations_visited
         for l = 1:L
             tprime = last_time_visited[l] # last time we checked location
             prior_change = cdf(tstate.Γd[l], tprime - 1) # changed during data collection
-            prior_int_change = cdf(tstate.Γd[l], t - 1) - cdf(tstate.Γd[l], tprime - 1) # changed since data collection
-            prior_no_change = ccdf(tstate.Γd[l], t - 1) # has not changed yet
-            
+            prior_int_change = cdf(tstate.Γd[l], t - 2) - cdf(tstate.Γd[l], tprime - 1) # changed since data collection
+            prior_no_change = ccdf(tstate.Γd[l], t - 2) # has not changed yet
+
             pDn = w[t - 1, l] * prior_no_change
             pDd = (1 - w[t - 1, l]) * prior_change + w[t - 1, l] * prior_int_change
             pD = pDn / (pDn + pDd)
-            dD = BetaBinomial(n, tstate.beta_parameters[l, 1], tstate.beta_parameters[l, 2])
             
-            dC = BetaBinomial(n, tstate.recent_beta_parameters[l, 1], tstate.recent_beta_parameters[l, 2])
+            dD = BetaBinomial(n, tstate.beta_parameters[l, 1], tstate.beta_parameters[l, 2])
+            dC = BetaBinomial(n, tstate.recent_beta_parameters[l, 1], tstate.recent_beta_parameters[l, 2]) # this is the main area to improve
             dC_int = BetaBinomial(n, 1, 1)
             
             f(i) = check_astat(i, n, astat, α, test_data, locations_visited, l, t)
             i = searchsortedfirst(SearchV{Int}(0:n, i -> f(i)), 1) - 1 # note this returns index so need to - 1 to get count
-            # println(n_star)
+            # println(pD * ccdf(dD, i - 1))
+            probability_alarm[l] += pD + ccdf(dD, i - 1)
+            probability_alarm[l] += (1 - pD) * (prior_change * ccdf(dC, i - 1) + prior_int_change * ccdf(dC_int, i - 1))
+            # println(tstate.Γd[l])
 
-            # for i = 0:n # to do: binary search on first n 
-                # test_data[t, l] = i
-                # locations_visited[t] = l
-                # z_candidate, _ = astat(n, @views(test_data[1:t, l][locations_visited[1:t] .== l])) # this is the main bottleneck
-                # if z_candidate > log(α)
-                    # println("location: $l, sample size: $i")
-                    probability_alarm[l] += pD *  ccdf(dD, i - 1)
-                    probability_alarm[l] += (1 - pD) * (prior_change * ccdf(dC, i - 1) + prior_int_change * ccdf(dC_int, i - 1))
-                    # println(i)
-                    # break
-                    
-                # end
-            # end
-            test_data[t, l] = -1.0
-            locations_visited[t] = 0
+            println("t = $t, tprime = $tprime, l = $l, times_visited = $(ntimes_visited[t - 1, l])")
+            println("t = $t, tprime = $tprime, l = $l, prior_change = $prior_change")
+            println("t = $t, tprime = $tprime, l = $l, prior_int_change = $prior_int_change")
+            println("t = $t, tprime = $tprime, l = $l, prior_no_change = $prior_no_change")
+            println("t = $t, tprime = $tprime, l = $l, likely_no_change = $(w[t - 1, l])")
+            println("t = $t, tprime = $tprime, l = $l, posterior_p_no_change = $pD")
+            println("t = $t, tprime = $tprime, l = $l, dC = $(dC)")
+            println("t = $t, tprime = $tprime, l = $l, probability_alarm = $(probability_alarm[l])")
+            
+            println("")
         end
-        # @assert all(0 .<= probability_alarm .<= 1.0) # probability need to do log probabilities
-        # println(probability_alarm)
         return argmax(probability_alarm) 
     end
     return Int(ceil(t / 2))
