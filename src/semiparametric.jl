@@ -145,24 +145,26 @@ function tpolicy_evsi(L, n, astat, α, tstate, rng, test_data, locations_visited
             pD = pDn / (pDn + pDd)
             dD = BetaBinomial(n, tstate.beta_parameters[l, 1], tstate.beta_parameters[l, 2])
             
-            positive_forget = sum(test_data[t_forget:t, l][locations_visited[t_forget:t] .== l])
-            tests_forget = sum(locations_visited[t_forget:t] .== l) * n
+            @views positive_forget = sum(test_data[t_forget:t, l][locations_visited[t_forget:t] .== l])
+            @views tests_forget = sum(locations_visited[t_forget:t] .== l) * n
             dC = BetaBinomial(n, 1 + positive_forget, 1 + tests_forget - positive_forget)
             
-            for i = 0:n
+            for i = 0:n # to do: find first n that causes switch
                 test_data[t, l] = i
                 locations_visited[t] = l
                 z, _ = astat(n, @view(test_data[1:t, l][locations_visited[1:t] .== l]))
+                # z = rand(Uniform(log(α) - 10, log(α) + 10))
                 if z > log(α)
-                    probability_alarm[l] += pD * pdf(dD, i)
-                    probability_alarm[l] += (1 - pD) * pdf(dC, i)
+                    probability_alarm[l] += pD * (isnan(pdf(dD, i)) ? 0.0 : pdf(dD, i))
+                    probability_alarm[l] += (1 - pD) * (isnan(pdf(dC, i)) ? 0.0 : pdf(dC, i))
                 end
             end
             test_data[t, l] = -1.0
             locations_visited[t] = 0
         end
-        println(probability_alarm)
-        return argmax(probability_alarm)
+        # println(probability_alarm)
+        @assert all(0 .<= probability_alarm .<= 1.0) # probability need to do log probabilities
+        return argmax(probability_alarm) 
     end
     return Int(ceil(t / 2))
 end
