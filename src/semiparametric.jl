@@ -18,7 +18,7 @@ function replication(L, Γ::Array{Int64}, p0, p, n, astat::Function, α, tpolicy
     ntimes_visited = zeros(Int64, maxiters, L)
     last_time_visited = ones(Int64, L) * -1
     z = ones(maxiters, L) * -1.0 # alarm statistic
-    w = ones(maxiters, L) * -1.0 # posterior probability of states
+    w = ones(maxiters, L, 2) * -1.0 # posterior log probability of states
     for t = 1:maxiters
         l = tpolicy(L, n, astat, α, tstate, rng1, test_data, locations_visited, ntimes_visited, last_time_visited, z, w, t)
         locations_visited[t] = l
@@ -59,14 +59,14 @@ function apolicy!(L, n, astat::Function, α, test_data, locations_visited, ntime
     for l = 1:L
         if ntimes_visited[t, l] > 2
             if locations_visited[t] == l
-                z[t, l], w[t, l] = astat(n, @views(test_data[1:t, l][locations_visited[1:t] .== l]))
+                z[t, l], w[t, l, :] = astat(n, @views(test_data[1:t, l][locations_visited[1:t] .== l]))
                 la = z[t, l] > log(α) ? l : 0
             else
-                z[t, l], w[t, l] = z[t - 1, l], w[t - 1, l]
+                z[t, l], w[t, l, :] = z[t - 1, l], w[t - 1, l, :]
             end
         else
             z[t, l] = 0.0
-            w[t, l] = 0.5
+            w[t, l, :] = [log(0.5), log(0.5)]
         end
     end
     return la
@@ -77,12 +77,12 @@ function astat_isotonic(n, positive_counts)
     # @assert all(0 .<= positive_counts .<= n)
     n_visits = length(positive_counts)
     pcon = sum(positive_counts) / (n * n_visits)
-    lcon = sum(logpdf(Binomial(n, pcon), positive_counts[i]) for i = 1:n_visits)
+    lcon = sum(logpdf(Binomial(n, pcon), positive_counts[i]) for i = 1:n_visits) # to do: use loglikelihood function
     y = 2 * asin.(sqrt.(positive_counts ./ n))
     ir = isotonic_regression!(y)
     piso = sin.(ir ./ 2).^2
     liso = sum(logpdf(Binomial(n, piso[i]), positive_counts[i]) for i = 1:n_visits)
-    return liso - lcon, softmax([lcon, liso])[1]
+    return liso - lcon, [lcon, liso] #softmax([lcon, liso])[1]
 end
 
 ### SEARCH POLICIES
@@ -156,36 +156,65 @@ function tpolicy_evsi(L, n, astat, α, tstate, rng, test_data, locations_visited
     probability_alarm = zeros(L) # estimated probability that the location will cause an alarm if tested next
     if t > 2 * L # warmup
         for l = 1:L
-            tprime = last_time_visited[l] # last time we checked location
-            prior_change = cdf(tstate.Γd[l], tprime - 1) # changed during data collection
-            prior_int_change = cdf(tstate.Γd[l], t - 2) - cdf(tstate.Γd[l], tprime - 1) # changed since data collection
-            prior_no_change = ccdf(tstate.Γd[l], t - 2) # has not changed yet
-
-            pDn = w[t - 1, l] * prior_no_change
-            pDd = (1 - w[t - 1, l]) * prior_change + w[t - 1, l] * prior_int_change
-            pD = pDn / (pDn + pDd)
-            
-            dD = BetaBinomial(n, tstate.beta_parameters[l, 1], tstate.beta_parameters[l, 2])
-            dC = BetaBinomial(n, tstate.recent_beta_parameters[l, 1], tstate.recent_beta_parameters[l, 2]) # this is the main area to improve
-            dC_int = BetaBinomial(n, 1, 1)
-            
             f(i) = check_astat(i, n, astat, α, test_data, locations_visited, l, t)
             i = searchsortedfirst(SearchV{Int}(0:n, i -> f(i)), 1) - 1 # note this returns index so need to - 1 to get count
-            # println(pD * ccdf(dD, i - 1))
-            probability_alarm[l] += pD + ccdf(dD, i - 1)
-            probability_alarm[l] += (1 - pD) * (prior_change * ccdf(dC, i - 1) + prior_int_change * ccdf(dC_int, i - 1))
-            # println(tstate.Γd[l])
+            if i > n
+                break
+            end
+            tprime = last_time_visited[l] # last time we checked location
 
-            println("t = $t, tprime = $tprime, l = $l, times_visited = $(ntimes_visited[t - 1, l])")
-            println("t = $t, tprime = $tprime, l = $l, prior_change = $prior_change")
-            println("t = $t, tprime = $tprime, l = $l, prior_int_change = $prior_int_change")
-            println("t = $t, tprime = $tprime, l = $l, prior_no_change = $prior_no_change")
-            println("t = $t, tprime = $tprime, l = $l, likely_no_change = $(w[t - 1, l])")
-            println("t = $t, tprime = $tprime, l = $l, posterior_p_no_change = $pD")
-            println("t = $t, tprime = $tprime, l = $l, dC = $(dC)")
-            println("t = $t, tprime = $tprime, l = $l, probability_alarm = $(probability_alarm[l])")
+            dD = BetaBinomial(n, tstate.beta_parameters[l, 1], tstate.beta_parameters[l, 2])
+            dC = BetaBinomial(n, tstate.recent_beta_parameters[l, 1], tstate.recent_beta_parameters[l, 2])
+
+            prior_change = logcdf(tstate.Γd[l], tprime - 1) # changed during data collection
+            prior_no_change = logccdf(tstate.Γd[l], t - 2) # has not changed yet
+            pDn = w[t - 1, l, 1] + prior_no_change
+
+            if tprime < (t - 1) # has any intermediate time step passed?
+                prior_int_change = logdiffcdf(tstate.Γd[l], t - 2, tprime - 1)
+                pDd = logsumexp([w[t - 1, l, 2] + prior_change, w[t - 1, l, 1] + prior_int_change])
+                pD = pDn - logsumexp([pDn, pDd])
+                
+                dC_int = BetaBinomial(n, 1, 1)
+                t1 = 0.0
+                try
+                    t1 = pD + logccdf(dD, i - 1) # this will sometimes fail
+                catch e
+                    # println(dD)
+                    # println(i - 1)
+                    # println(e)
+                    t1 = pD + logsumexp([logpdf(dD, j) for j = i:n])
+                end
+                t2 = log1mexp(pD) + logsumexp([prior_change + logccdf(dC, i - 1), prior_int_change + logccdf(dC_int, i - 1)])
+                
+                probability_alarm[l] = logsumexp([t1, t2])
+                # println("t = $t, tprime = $tprime, l = $l, prior_int_change = $(exp(prior_int_change))")
+            else
+                pDd = w[t - 1, l, 2] + prior_change
+                pD = pDn - logsumexp([pDn, pDd])
+                t1 = 0.0
+                try
+                    t1 = pD + logccdf(dD, i - 1) # this will sometimes fail
+                catch e
+                    # println(dD)
+                    # println(i - 1)
+                    # println(e)
+                    t1 = pD + logsumexp([logpdf(dD, j) for j = i:n])
+                end
+                t2 = log1mexp(pD) + logccdf(dC, i - 1)
+
+                probability_alarm[l] = logsumexp([t1, t2])
+                # println("t = $t, tprime = $tprime, l = $l, prior_int_change = 0.0")
+            end
+            # println("t = $t, tprime = $tprime, l = $l, times_visited = $(ntimes_visited[t - 1, l])")
+            # println("t = $t, tprime = $tprime, l = $l, prior_change = $(exp(prior_change))")
             
-            println("")
+            # println("t = $t, tprime = $tprime, l = $l, prior_no_change = $(exp(prior_no_change))")
+            # println("t = $t, tprime = $tprime, l = $l, likely_no_change = $(exp.(w[t - 1, l, :]))")
+            # println("t = $t, tprime = $tprime, l = $l, posterior_p_no_change = $(exp(pD))")
+            # println("t = $t, tprime = $tprime, l = $l, dC = $(dC)")
+            # println("t = $t, tprime = $tprime, l = $l, probability_alarm = $(exp(probability_alarm[l]))")
+            # println("")
         end
         return argmax(probability_alarm) 
     end
@@ -220,3 +249,8 @@ function probability_successfull_detection_l(K, T, d, l, L, p0, p, n, apolicy::F
     hw = z_score .* sqrt.(psd .* (1 .- psd) ./ post_detections)
     return psd, hw
 end
+
+# BetaBinomial{Float64}(n=200, α=136.0, β=8466.0)
+# 10
+# 9
+# 10

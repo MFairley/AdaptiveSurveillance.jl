@@ -10,12 +10,12 @@ const β = 4e-6 * 536 * 7
 const p = repeat(prevalance_sequence(p0[1], β), 1, L)
 const n = 200
 
-const ν = 1 / (26) # approx 6 months until there is an outbreak
+const ν = 1 / (52) # approx 6 months until there is an outbreak
 const Γd = [Geometric(ν) for l = 1:L]
 
 const α = 1000
 
-T_end = 40
+T_end = 21
 
 # sp2vi, hw2vi = probability_successfull_detection_l(Int(1e4), T_end, 47, 1, L, p0, p, n, astat_isotonic, α,
     # tpolicy_evsi, tstate_evsi(Γd, ones(L, 2), ones(L, 2)));
