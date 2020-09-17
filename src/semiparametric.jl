@@ -19,6 +19,7 @@ function replication(L, Γ::Array{Int64}, p0, p, n, astat::Function, α, tpolicy
     last_time_visited = ones(Int64, L) * -1
     z = ones(maxiters, L) * -1.0 # alarm statistic
     w = ones(maxiters, L, 2) * -1.0 # posterior log probability of states
+    prevalance_history = zeros(maxiters, L) # record of prevalance over time
     for t = 1:maxiters
         l = tpolicy(L, n, astat, α, tstate, rng1, test_data, locations_visited, ntimes_visited, last_time_visited, z, w, t)
         locations_visited[t] = l
@@ -26,14 +27,16 @@ function replication(L, Γ::Array{Int64}, p0, p, n, astat::Function, α, tpolicy
         for j = 1:L
             ntimes_visited[t, j] += ntimes_visited[max(1, t - 1), j] + (j == l)
         end
-        test_data[t, l] = sample_test_data(Γ[l], p0[l], @view(p[:, l]), n, rng2, t)
+        test_data[t, l] = sample_test_data(Γ[l], p0[l], @view(p[:, l]), n, rng2, t, l)
+        update_prevalance_history!(L, Γ, p0, p, prevalance_history, t) # can comment out if want to save memory
 
         la = apolicy!(L, n, astat, α, test_data, locations_visited, ntimes_visited, z, w, t)
         if la > 0
             if t >= Γ[la]
                 false_alarm = 0
             end
-            return t, la, false_alarm, max.(0, t .- Γ), test_data, locations_visited, ntimes_visited, last_time_visited, z, w
+            return t, la, false_alarm, max.(0, t .- Γ), test_data, locations_visited, ntimes_visited, 
+                last_time_visited, z, w, prevalance_history
         end
     end
     if warn
@@ -42,16 +45,29 @@ function replication(L, Γ::Array{Int64}, p0, p, n, astat::Function, α, tpolicy
     if all(maxiters + 1 .>= Γ)
         false_alarm = 0
     end
-    return maxiters + 1, -1, false_alarm, max.(0, (maxiters + 1) .- Γ), test_data, locations_visited, ntimes_visited, last_time_visited, z, w
+    return maxiters + 1, -1, false_alarm, max.(0, (maxiters + 1) .- Γ), test_data, locations_visited, ntimes_visited, 
+        last_time_visited, z, w, prevalance_history
 end
 
-function sample_test_data(Γ, p0, p, n, rng, t)
+function sample_test_data(Γ, p0, p, n, rng, t, l)
     if t < Γ
         return rand(rng, Binomial(n, p0))
     elseif Γ <= t < Γ + length(p)
         return rand(rng, Binomial(n, p[t - Γ + 1]))
     end
     return rand(rng, Binomial(n, p[end]))
+end
+
+function update_prevalance_history!(L, Γ, p0, p, prevalance_history, t)
+    for l = 1:L
+        if t < Γ[l]
+            prevalance_history[t, l] = p0[l]
+        elseif Γ[l] <= t < Γ[l] + length(p[:, l])
+            prevalance_history[t, l] = p[t - Γ[l] + 1, l]
+        else
+            prevalance_history[t, l] = p[end, l]
+        end
+    end
 end
 
 function apolicy!(L, n, astat::Function, α, test_data, locations_visited, ntimes_visited, z, w, t)
@@ -82,7 +98,7 @@ function astat_isotonic(n, positive_counts)
     ir = isotonic_regression!(y)
     piso = sin.(ir ./ 2).^2
     liso = sum(logpdf(Binomial(n, piso[i]), positive_counts[i]) for i = 1:n_visits)
-    return liso - lcon, [lcon, liso] #softmax([lcon, liso])[1]
+    return liso - lcon, [lcon, liso]
 end
 
 ### SEARCH POLICIES
@@ -153,12 +169,13 @@ function tpolicy_evsi(L, n, astat, α, tstate, rng, test_data, locations_visited
         beta_update(n, tstate.beta_parameters, test_data, l, t)
         beta_update(n, tstate.recent_beta_parameters, test_data, l, t, accumulate = false)
     end
-    probability_alarm = zeros(L) # estimated probability that the location will cause an alarm if tested next
+    probability_alarm = zeros(L) # estimated log probability that the location will cause an alarm if tested next
     if t > 2 * L # warmup
         for l = 1:L
             f(i) = check_astat(i, n, astat, α, test_data, locations_visited, l, t)
             i = searchsortedfirst(SearchV{Int}(0:n, i -> f(i)), 1) - 1 # note this returns index so need to - 1 to get count
             if i > n
+                probability_alarm[l] = -Inf
                 break
             end
             tprime = last_time_visited[l] # last time we checked location
@@ -180,9 +197,6 @@ function tpolicy_evsi(L, n, astat, α, tstate, rng, test_data, locations_visited
                 try
                     t1 = pD + logccdf(dD, i - 1) # this will sometimes fail
                 catch e
-                    # println(dD)
-                    # println(i - 1)
-                    # println(e)
                     t1 = pD + logsumexp([logpdf(dD, j) for j = i:n])
                 end
                 t2 = log1mexp(pD) + logsumexp([prior_change + logccdf(dC, i - 1), prior_int_change + logccdf(dC_int, i - 1)])
@@ -196,9 +210,6 @@ function tpolicy_evsi(L, n, astat, α, tstate, rng, test_data, locations_visited
                 try
                     t1 = pD + logccdf(dD, i - 1) # this will sometimes fail
                 catch e
-                    # println(dD)
-                    # println(i - 1)
-                    # println(e)
                     t1 = pD + logsumexp([logpdf(dD, j) for j = i:n])
                 end
                 t2 = log1mexp(pD) + logccdf(dC, i - 1)
@@ -208,7 +219,6 @@ function tpolicy_evsi(L, n, astat, α, tstate, rng, test_data, locations_visited
             end
             # println("t = $t, tprime = $tprime, l = $l, times_visited = $(ntimes_visited[t - 1, l])")
             # println("t = $t, tprime = $tprime, l = $l, prior_change = $(exp(prior_change))")
-            
             # println("t = $t, tprime = $tprime, l = $l, prior_no_change = $(exp(prior_no_change))")
             # println("t = $t, tprime = $tprime, l = $l, likely_no_change = $(exp.(w[t - 1, l, :]))")
             # println("t = $t, tprime = $tprime, l = $l, posterior_p_no_change = $(exp(pD))")
@@ -249,8 +259,3 @@ function probability_successfull_detection_l(K, T, d, l, L, p0, p, n, apolicy::F
     hw = z_score .* sqrt.(psd .* (1 .- psd) ./ post_detections)
     return psd, hw
 end
-
-# BetaBinomial{Float64}(n=200, α=136.0, β=8466.0)
-# 10
-# 9
-# 10
