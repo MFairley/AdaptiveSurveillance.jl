@@ -187,36 +187,36 @@ function tpolicy_evsi(L, n, astat, α, tstate, rng, test_data, locations_visited
             prior_no_change = logccdf(tstate.Γd[l], t - 2) # has not changed yet
             pDn = w[t - 1, l, 1] + prior_no_change
 
-            if tprime < (t - 1) # has any intermediate time step passed?
-                prior_int_change = logdiffcdf(tstate.Γd[l], t - 2, tprime - 1)
-                pDd = logsumexp([w[t - 1, l, 2] + prior_change, w[t - 1, l, 1] + prior_int_change])
-                pD = pDn - logsumexp([pDn, pDd])
+            # if tprime < (t - 1) # has any intermediate time step passed?
+            #     prior_int_change = logdiffcdf(tstate.Γd[l], t - 2, tprime - 1)
+            #     pDd = logsumexp([w[t - 1, l, 2] + prior_change, w[t - 1, l, 1] + prior_int_change])
+            #     pD = pDn - logsumexp([pDn, pDd])
                 
-                dC_int = BetaBinomial(n, 1, 1)
-                t1 = 0.0
-                try
-                    t1 = pD + logccdf(dD, i - 1) # this will sometimes fail
-                catch e
-                    t1 = pD + logsumexp([logpdf(dD, j) for j = i:n])
-                end
-                t2 = log1mexp(pD) + logsumexp([prior_change + logccdf(dC, i - 1), prior_int_change + logccdf(dC_int, i - 1)])
+            #     dC_int = BetaBinomial(n, 1, 1)
+            #     t1 = 0.0
+            #     try
+            #         t1 = pD + logccdf(dD, i - 1) # this will sometimes fail
+            #     catch e
+            #         t1 = pD + logsumexp([logpdf(dD, j) for j = i:n])
+            #     end
+            #     t2 = log1mexp(pD) + logsumexp([prior_change + logccdf(dC, i - 1), prior_int_change + logccdf(dC_int, i - 1)])
                 
-                probability_alarm[l] = logsumexp([t1, t2])
-                # println("t = $t, tprime = $tprime, l = $l, prior_int_change = $(exp(prior_int_change))")
-            else
-                pDd = w[t - 1, l, 2] + prior_change
-                pD = pDn - logsumexp([pDn, pDd])
-                t1 = 0.0
-                try
-                    t1 = pD + logccdf(dD, i - 1) # this will sometimes fail
-                catch e
-                    t1 = pD + logsumexp([logpdf(dD, j) for j = i:n])
-                end
-                t2 = log1mexp(pD) + logccdf(dC, i - 1)
+            #     probability_alarm[l] = logsumexp([t1, t2])
+            #     # println("t = $t, tprime = $tprime, l = $l, prior_int_change = $(exp(prior_int_change))")
+            # else
+            #     pDd = w[t - 1, l, 2] + prior_change
+            #     pD = pDn - logsumexp([pDn, pDd])
+            #     t1 = 0.0
+            #     try
+            #         t1 = pD + logccdf(dD, i - 1) # this will sometimes fail
+            #     catch e
+            #         t1 = pD + logsumexp([logpdf(dD, j) for j = i:n])
+            #     end
+            #     t2 = log1mexp(pD) + logccdf(dC, i - 1)
 
-                probability_alarm[l] = logsumexp([t1, t2])
-                # println("t = $t, tprime = $tprime, l = $l, prior_int_change = 0.0")
-            end
+            #     probability_alarm[l] = logsumexp([t1, t2])
+            #     # println("t = $t, tprime = $tprime, l = $l, prior_int_change = 0.0")
+            # end
             # println("t = $t, tprime = $tprime, l = $l, times_visited = $(ntimes_visited[t - 1, l])")
             # println("t = $t, tprime = $tprime, l = $l, prior_change = $(exp(prior_change))")
             # println("t = $t, tprime = $tprime, l = $l, prior_no_change = $(exp(prior_no_change))")
