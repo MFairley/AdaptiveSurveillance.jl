@@ -50,7 +50,7 @@ end
     z = logit(p0)
     for (i, ti) in enumerate(t)
         # W[i] ~ Binomial(n, max(p0, logistic.(β * ti - β * Γ + z)))
-        W[i] ~ BinomialLogit(n, max(z, β * ti - β * Γ + z))
+        W[i] ~ BinomialLogit(n, max(0, β * (ti - Γ)) + z)
     end
 end
 

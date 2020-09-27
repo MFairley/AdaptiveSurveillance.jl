@@ -33,6 +33,11 @@ const t = collect(0.0:1.0:299.0)
 
 const n_samples = length(W)
 
+function loglikeli_binom(β, z, Γ, n, W, t, n_samples)
+    p = logistic.(β * max.(0, t .- Γ) .+ z)
+    sum(logpdf(Binomial(n, p[i]), W[i]) for i = 1:n_samples)
+end
+
 model = Model(Ipopt.Optimizer)
 set_optimizer_attributes(model, "print_level" => 0)
 m(x, y) = max(x, y)
@@ -52,7 +57,7 @@ param_values = zeros(n+1, 3)
 for i = 0:n
     set_value(y, i)
     optimize!(model)
-    y_likeli[i+1] = objective_value(model)
+    y_likeli[i+1] = loglikeli_binom(value(β), value(z), value(Γ), n, vcat(W, i), vcat(t, 305), n_samples + 1)
     param_values[i+1, 1] = value(β)
     param_values[i+1, 2] = logistic(value(z))
     param_values[i+1, 3] = value(Γ)
