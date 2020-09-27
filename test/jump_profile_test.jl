@@ -31,7 +31,8 @@ const W = [1.0, 1.0, 1.0, 2.0, 4.0, 4.0, 3.0, 2.0, 2.0, 2.0, 0.0, 4.0, 3.0, 2.0,
 
 const t = collect(0.0:1.0:299.0)
 
-const n_samples = length(W)
+const n_samples = 50#length(W)
+const project_t = 55.0#305.0
 
 function loglikeli_binom(β, z, Γ, n, W, t, n_samples)
     p = logistic.(β * max.(0, t .- Γ) .+ z)
@@ -42,12 +43,12 @@ model = Model(Ipopt.Optimizer)
 set_optimizer_attributes(model, "print_level" => 0)
 m(x, y) = max(x, y)
 register(model, :m, 2, m, autodiff=true)
-@variable(model, 0 <= β)
-@variable(model, z)
-@variable(model, 0 <= Γ)
+@variable(model, 0 <= β <= 1.0)
+@variable(model, z <= logit(0.5)) # less than 50% starting prevalance
+@variable(model, 0 <= Γ <= project_t)
 
 @NLparameter(model, y == 0.0)
-@NLparameter(model, ty == 305.0)
+@NLparameter(model, ty == project_t)
 
 @NLobjective(model, Max, sum(W[i] * (β * m(0, t[i] - Γ) + z) - n * log(1 + exp(β * m(0, t[i] - Γ) + z)) for i = 1:n_samples) +
     y * (β * m(0, ty - Γ) + z) - n * log(1 + exp(β * m(0, ty - Γ) + z)))
@@ -57,10 +58,10 @@ param_values = zeros(n+1, 3)
 for i = 0:n
     set_value(y, i)
     optimize!(model)
-    y_likeli[i+1] = loglikeli_binom(value(β), value(z), value(Γ), n, vcat(W, i), vcat(t, 305), n_samples + 1)
+    y_likeli[i+1] = loglikeli_binom(value(β), value(z), value(Γ), n, vcat(W[1:n_samples], i), vcat(t[1:n_samples], project_t), n_samples + 1)
     param_values[i+1, 1] = value(β)
     param_values[i+1, 2] = logistic(value(z))
     param_values[i+1, 3] = value(Γ)
 end
 
-# plot(0:n, softmax(y_likeli))
+bar(0:n, softmax(y_likeli))
