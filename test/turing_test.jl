@@ -33,6 +33,10 @@ const t = collect(0.0:1.0:299.0)
 
 const n_samples = length(W)
 
+function epidemic_prediction(β, p0, Γ, t)
+    max.(p0, logistic.(β .* t .- β .* Γ .+ logit.(p0)))
+end
+
 function epidemic_loglikeli(β, p0, Γ, n, W, t) 
     pe = max.(p0, logistic.(β .* t .- β * Γ .+ logit(p0)))
     return sum(W .* log.(pe) .+ (n .- W) .* log.(1 .- pe))
@@ -40,7 +44,7 @@ end
 
 # Model
 @model logistic_epidemic(n, W, t) = begin
-    β ~ Gamma(0.1, 10) # transmission rate
+    β ~ Beta(1, 1) # transmission rate
     p0 ~ Beta(1, 1) # initial prevalence
     Γ ~ Uniform(0, t[end]) # Geometric(0.01) # epidemic start time
     z = logit(p0)
@@ -53,5 +57,7 @@ end
 # Inference
 chain = sample(logistic_epidemic(n, W, t), NUTS(1000, 0.95), 2000)
 
-advi = ADVI(10, 1000)
+p_samples = epidemic_prediction(chain[:β], chain[:p0], chain[:Γ], 350.0)
+
+# advi = ADVI(10, 1000)
 # q = vi(logistic_epidemic(n, W, t), advi)

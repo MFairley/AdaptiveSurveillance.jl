@@ -1,6 +1,7 @@
-using StatsFuns
-using JuMP
-using Ipopt
+using Convex
+using Mosek
+using MosekTools
+using Plots
 
 # True parameters
 const β_true = 0.015008
@@ -10,7 +11,6 @@ const p_true = vcat(ones(100) * p0_true, [0.01, 0.010149677104094834, 0.01030157
 
 # Data
 const n = 200
-
 const W = [1.0, 1.0, 1.0, 2.0, 4.0, 4.0, 3.0, 2.0, 2.0, 2.0, 0.0, 4.0, 3.0, 2.0, 2.0, 
 2.0, 4.0, 2.0, 1.0, 3.0, 3.0, 1.0, 3.0, 1.0, 3.0, 2.0, 1.0, 0.0, 1.0, 2.0, 0.0, 2.0, 8.0, 2.0, 5.0, 
 3.0, 0.0, 2.0, 2.0, 4.0, 1.0, 3.0, 2.0, 5.0, 2.0, 5.0, 3.0, 3.0, 3.0, 1.0, 1.0, 3.0, 1.0, 1.0, 3.0, 
@@ -27,19 +27,60 @@ const W = [1.0, 1.0, 1.0, 2.0, 4.0, 4.0, 3.0, 2.0, 2.0, 2.0, 0.0, 4.0, 3.0, 2.0,
 17.0, 22.0, 20.0, 16.0, 20.0, 17.0, 18.0, 17.0, 19.0, 16.0, 19.0, 17.0, 23.0, 24.0, 22.0, 19.0, 19.0, 
 20.0, 19.0, 23.0, 28.0, 20.0, 20.0, 24.0, 26.0, 25.0, 26.0, 21.0, 34.0, 29.0, 28.0, 23.0, 29.0, 28.0, 
 27.0, 36.0, 34.0, 29.0, 22.0, 17.0, 29.0, 28.0, 23.0, 39.0, 20.0, 28.0, 31.0, 23.0, 37.0, 31.0, 39.0, 49.0]
-
-const t = collect(0.0:1.0:299.0)
-
 const n_samples = length(W)
+const t = collect(0.0:1.0:(n_samples-1))
+const ts = 150
 
-model = Model(Ipopt.Optimizer)
-m(x, y) = max(x, y)
-register(model, :m, 2, m, autodiff=true)
-@variable(model, 0 <= β)
-@variable(model, z)
-@variable(model, 0 <= Γ)
-@NLobjective(model, Max, sum(W[i] * (β * m(0, t[i] - Γ) + z) - n * log(1 + exp(β * m(0, t[i] - Γ) + z)) for i = 1:n_samples))
-optimize!(model)
-println("β = $(value(β))")
-println("p0 = $(logistic(value(z)))")
-println("Γ = $(value(Γ))")
+function solve_subproblem(problem, q, t, Γ)
+    set_value!(q, max.(0, t .- Γ))
+    fix!(q)
+    solve!(problem, () -> Mosek.Optimizer(QUIET=true), verbose=false, warmstart = true)
+    return problem.optval, evaluate(β), logistic(evaluate(z))
+end
+
+β = Variable(Positive())
+z = Variable()
+q = Variable(n_samples, Positive()) # max(0, t - Γ)
+coeff = β * q + z
+obj = dot(W, coeff) - n * logisticloss(coeff)
+problem = maximize(obj)
+# set_value!(q, max.(0, t .- 100))
+# fix!(q) # makes the problem convex
+
+Γ_grid = collect(0:1.0:(t[end]+1.0))
+loglikelhood = zeros(length(Γ_grid))
+opt_parameters = zeros(length(Γ_grid), 2)
+@time for (i, Γv) in  enumerate(Γ_grid)
+    loglikelhood[i], opt_parameters[i, 1], opt_parameters[i, 2] = solve_subproblem(problem, q, t, Γv)
+end
+is = argmax(loglikelhood)
+plot(Γ_grid, loglikelhood)
+
+# to do: add in additional variable for profile, see if solving sub problems can be more efficient
+
+# function profile_likeli_y(y, ty, W, n, t, n_samples)
+#     l = -Inf
+#     for Γ = 0:ty
+#         lc, _ = solve_subproblem(Γ, vcat(W, y), n, vcat(t, ty), n_samples)
+#         if lc > l
+#             l = lc
+#         end
+#     end
+#     return l
+# end
+
+# function full_profile_likeli(ty, W, n, t, n_samples)
+#     l = zeros(n+1)
+#     for i = 0:n
+#         l[i+1] = profile_likeli_y(i, ty, W, n, t, n_samples)
+#     end
+# end
+
+
+
+# optimal parameters
+# is = argmax(loglikelhood)
+# n
+
+# obtain the profile likelihood
+# profile_l = full_profile_likeli(t[end] + 2.0, W, n, t, n_samples)
