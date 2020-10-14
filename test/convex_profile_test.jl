@@ -2,6 +2,7 @@ using Convex
 using Mosek
 using MosekTools
 using Plots
+using BenchmarkTools
 
 # True parameters
 const β_true = 0.015008
@@ -27,60 +28,56 @@ const W = [1.0, 1.0, 1.0, 2.0, 4.0, 4.0, 3.0, 2.0, 2.0, 2.0, 0.0, 4.0, 3.0, 2.0,
 17.0, 22.0, 20.0, 16.0, 20.0, 17.0, 18.0, 17.0, 19.0, 16.0, 19.0, 17.0, 23.0, 24.0, 22.0, 19.0, 19.0, 
 20.0, 19.0, 23.0, 28.0, 20.0, 20.0, 24.0, 26.0, 25.0, 26.0, 21.0, 34.0, 29.0, 28.0, 23.0, 29.0, 28.0, 
 27.0, 36.0, 34.0, 29.0, 22.0, 17.0, 29.0, 28.0, 23.0, 39.0, 20.0, 28.0, 31.0, 23.0, 37.0, 31.0, 39.0, 49.0]
-const n_samples = length(W)
+const n_samples = length(W) # can change
 const t = collect(0.0:1.0:(n_samples-1))
-const ts = 150
+# const project_t = n_samples + 1
 
-function solve_subproblem(problem, q, t, Γ)
-    set_value!(q, max.(0, t .- Γ))
-    fix!(q)
-    solve!(problem, () -> Mosek.Optimizer(QUIET=true), verbose=false, warmstart = true)
-    return problem.optval, evaluate(β), logistic(evaluate(z))
+function opt_problem(ts, tp)
+    @assert tp > ts
+    β = Variable(n + 1, length(0:maximum(t[1:ts])) + 1, Positive())
+    z = Variable(n + 1, length(0:maximum(t[1:ts])) + 1)
+    obj = 0.0
+    for (i, w) in enumerate(0:n) # test results
+        for (j, Γ) in enumerate(0:maximum(t[1:ts])) # time steps
+            coeff = β[i, j] * max.(0, vcat(t[1:ts], tp) .- Γ) + z[i, j]
+            obj += dot(vcat(W[1:ts], w), coeff) - n * logisticloss(coeff)
+        end
+    end
+    problem = maximize(obj, β <= 1.0)
+    return problem
 end
 
-β = Variable(Positive())
-z = Variable()
-q = Variable(n_samples, Positive()) # max(0, t - Γ)
-coeff = β * q + z
-obj = dot(W, coeff) - n * logisticloss(coeff)
-problem = maximize(obj)
+problem = opt_problem(50, 51);
+solve!(problem, () -> Mosek.Optimizer())
+
+# c1 = v >= geomean([τ])
+
+# function solve_subproblem(problem, q, t, Γ)
+#     set_value!(q, max.(0, t .- Γ))
+#     fix!(q)
+#     solve!(problem, () -> Mosek.Optimizer(QUIET=true), verbose=false, warmstart = true)
+#     return problem.optval, evaluate(β), logistic(evaluate(z))
+# end
+
+# β = Variable(Positive())
+# z = Variable()
+# q = Variable(n_samples, Positive()) # max(0, t - Γ)
+# coeff = β * q + z
+# obj = dot(W, coeff) - n * logisticloss(coeff)
+# problem = maximize(obj)
+# set_value!(q, max.(0, t .- 10))
+# fix!(q)
+# @time solve!(problem, () -> Mosek.Optimizer(QUIET=true), verbose=false, warmstart = true)
 # set_value!(q, max.(0, t .- 100))
 # fix!(q) # makes the problem convex
+# @benchmark
+# solve_subproblem(problem, q, t, 10)
 
-Γ_grid = collect(0:1.0:(t[end]+1.0))
-loglikelhood = zeros(length(Γ_grid))
-opt_parameters = zeros(length(Γ_grid), 2)
-@time for (i, Γv) in  enumerate(Γ_grid)
-    loglikelhood[i], opt_parameters[i, 1], opt_parameters[i, 2] = solve_subproblem(problem, q, t, Γv)
-end
-is = argmax(loglikelhood)
-plot(Γ_grid, loglikelhood)
-
-# to do: add in additional variable for profile, see if solving sub problems can be more efficient
-
-# function profile_likeli_y(y, ty, W, n, t, n_samples)
-#     l = -Inf
-#     for Γ = 0:ty
-#         lc, _ = solve_subproblem(Γ, vcat(W, y), n, vcat(t, ty), n_samples)
-#         if lc > l
-#             l = lc
-#         end
-#     end
-#     return l
+# Γ_grid = collect(0:1.0:(t[end]+1.0))
+# loglikelhood = zeros(length(Γ_grid))
+# opt_parameters = zeros(length(Γ_grid), 2)
+# @time for (i, Γv) in  enumerate(Γ_grid)
+#     loglikelhood[i], opt_parameters[i, 1], opt_parameters[i, 2] = solve_subproblem(problem, q, t, Γv)
 # end
-
-# function full_profile_likeli(ty, W, n, t, n_samples)
-#     l = zeros(n+1)
-#     for i = 0:n
-#         l[i+1] = profile_likeli_y(i, ty, W, n, t, n_samples)
-#     end
-# end
-
-
-
-# optimal parameters
 # is = argmax(loglikelhood)
-# n
-
-# obtain the profile likelihood
-# profile_l = full_profile_likeli(t[end] + 2.0, W, n, t, n_samples)
+# plot(Γ_grid, loglikelhood)

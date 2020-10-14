@@ -2,6 +2,7 @@ using StatsFuns
 using JuMP
 using Ipopt
 using Plots
+using AdaptiveSurveillance
 
 # True parameters
 const β_true = 0.015008
@@ -31,8 +32,8 @@ const W = [1.0, 1.0, 1.0, 2.0, 4.0, 4.0, 3.0, 2.0, 2.0, 2.0, 0.0, 4.0, 3.0, 2.0,
 
 const t = collect(0.0:1.0:299.0)
 
-const n_samples = 50#length(W)
-const project_t = 55.0#305.0
+const n_samples = 200 #length(W)
+const project_t = n_samples + 10 #305.0
 
 function loglikeli_binom(β, z, Γ, n, W, t, n_samples)
     p = logistic.(β * max.(0, t .- Γ) .+ z)
@@ -55,7 +56,7 @@ register(model, :m, 2, m, autodiff=true)
 
 y_likeli = zeros(n+1)
 param_values = zeros(n+1, 3)
-for i = 0:n
+@time for i = 0:n
     set_value(y, i)
     optimize!(model)
     y_likeli[i+1] = loglikeli_binom(value(β), value(z), value(Γ), n, vcat(W[1:n_samples], i), vcat(t[1:n_samples], project_t), n_samples + 1)
@@ -64,4 +65,5 @@ for i = 0:n
     param_values[i+1, 3] = value(Γ)
 end
 
-bar(0:n, softmax(y_likeli))
+bar(0:n, softmax(y_likeli), xlabel = "Number of Positive Tests", ylabel = "Probability", legend=false)
+savefig(joinpath(dirname(pathof(AdaptiveSurveillance)), "..", "results", "tmp", "pred_dist_200samples_10steps.pdf"))
