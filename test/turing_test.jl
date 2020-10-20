@@ -2,6 +2,9 @@ using Random
 using StatsFuns
 using Plots
 using Turing
+using AdaptiveSurveillance
+
+const output_path = joinpath(dirname(pathof(AdaptiveSurveillance)), "..", "results", "tmp")
 
 # True parameters
 const β_true = 0.015008
@@ -33,6 +36,17 @@ const t = collect(0.0:1.0:299.0)
 
 const n_samples = length(W)
 
+# Plot
+plot(t, p_true, xlabel = "t (Weeks)", ylabel = "Prevalance", label = "Prevalence", legend = :topleft,
+    title = "Logistic Epidemic Curve \n β = 0.015008, p0 = 0.01 and Γ = 100 ")
+vline!([100], label = "Γ")
+savefig(joinpath(output_path, "logistic_curve_example.pdf"))
+
+plot(t, W, xlabel = "t (Weeks)", ylabel = "Positive Count", label = "Positive Count", legend = :topleft,
+title = "Sampling from Logistic Epidemic Curve \n β = 0.015008, p0 = 0.01 and Γ = 100 ")
+vline!([100], label = "Γ")
+savefig(joinpath(output_path, "logistic_curve_sampling_example.pdf"))
+
 function epidemic_prediction(β, p0, Γ, t)
     max.(p0, logistic.(β .* t .- β .* Γ .+ logit.(p0)))
 end
@@ -55,9 +69,9 @@ end
 end
 
 # Inference
-chain = sample(logistic_epidemic(n, W, t), NUTS(1000, 0.95), 2000)
+# chain = sample(logistic_epidemic(n, W, t), NUTS(1000, 0.95), 2000)
 
-p_samples = epidemic_prediction(chain[:β], chain[:p0], chain[:Γ], 350.0)
+# p_samples = epidemic_prediction(chain[:β], chain[:p0], chain[:Γ], 350.0)
 
 # advi = ADVI(10, 1000)
 # q = vi(logistic_epidemic(n, W, t), advi)

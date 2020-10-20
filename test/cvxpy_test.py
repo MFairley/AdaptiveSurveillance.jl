@@ -7,6 +7,7 @@ from multiprocessing import Pool
 from scipy.special import expit, softmax
 from scipy.stats import binom
 import matplotlib.pyplot as plt
+import time
 
 n = 200
 W = np.array([1.0, 1.0, 1.0, 2.0, 4.0, 4.0, 3.0, 2.0, 2.0, 2.0, 0.0, 4.0, 3.0, 2.0, 2.0, 
@@ -24,13 +25,13 @@ W = np.array([1.0, 1.0, 1.0, 2.0, 4.0, 4.0, 3.0, 2.0, 2.0, 2.0, 0.0, 4.0, 3.0, 2
 16.0, 11.0, 13.0, 16.0, 12.0, 17.0, 11.0, 20.0, 16.0, 16.0, 19.0, 15.0, 12.0, 13.0, 12.0, 14.0, 15.0, 
 17.0, 22.0, 20.0, 16.0, 20.0, 17.0, 18.0, 17.0, 19.0, 16.0, 19.0, 17.0, 23.0, 24.0, 22.0, 19.0, 19.0, 
 20.0, 19.0, 23.0, 28.0, 20.0, 20.0, 24.0, 26.0, 25.0, 26.0, 21.0, 34.0, 29.0, 28.0, 23.0, 29.0, 28.0, 
-27.0, 36.0, 34.0, 29.0, 22.0, 17.0, 29.0, 28.0, 23.0, 39.0, 20.0, 28.0, 31.0, 23.0, 37.0, 31.0, 39.0, 49.0])
-
+27.0, 36.0, 34.0, 29.0, 22.0, 17.0, 29.0, 28.0, 23.0, 39.0, 20.0, 28.0, 31.0, 23.0, 37.0, 31.0, 39.0, 
+49.0])
 t = np.arange(0, len(W))
+t_up = 150
+tp = t_up + 10
 
-tp = len(W) + 1
-
-def create_problem(m, beta_max = 1.0, z_max = 0.0): # m: number of data points including new ones
+def create_problem(m, beta_max = 1.0, z_max = 0.0): # m: number of data points
     W = cp.Parameter(m, nonneg=True) # test results
     q = cp.Parameter(m, nonneg=True) # cp.pos(t - gamma), need to precompute outside problem
     beta = cp.Variable(nonneg=True) # transition rate
@@ -50,6 +51,7 @@ def solve_subproblem(problem, Wp, qp, beta, z, W, t, tp, y, gamma):
 def solve_problem(n, W, t, tp, m, tmax):
     problem, Wp, qp, beta, z = create_problem(m)
     f = partial(solve_subproblem, problem, Wp, qp, beta, z, W, t, tp)
+    # f(0, 0) # presolve for caching - this causes an assertion error
     with Pool(processes=8) as pool:
         M = pool.starmap(f, product(range(n+1), range(tmax+1)))
     return M
@@ -83,12 +85,15 @@ def profile_likelihood(n, W, t, tp):
     
     return softmax(logl)
 
-
-pl = profile_likelihood(n, W[0:10], t[0:10], 13)
+start = time.time()
+pl = profile_likelihood(n, W[0:t_up], t[0:t_up], tp)
+end = time.time()
+print("Time taken was {}".format(end - start))
 
 fig, ax = plt.subplots()
-ax.bar(np.arange(0, n + 1), pl)  # `density=False` would make counts
-ax.set_xlabel('Positive Count')
+ax.bar(np.arange(0, n + 1), pl)
+ax.set_xlabel('Number of Positive Tests')
 ax.set_ylabel('Probability')
-fig.savefig("density_plot.eps")
+ax.set_title("Predictive Distribution for Time {} at Time {} \n BetaU = 1.0, zU = logit(0.5)".format(tp, t_up))
+fig.savefig("../results/tmp/cvx_pred_dist_{}samples_{}steps.pdf".format(t_up, tp - t_up))
 plt.close(fig)

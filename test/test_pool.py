@@ -32,6 +32,7 @@ def get_x(gamma_value):
     return x.value
 
 # Parallel computation (set to 1 process here).
+get_x(gamma_vals[0])
 pool = Pool(processes = 8)
 x_values = pool.map(get_x, gamma_vals)
 print(x_values)
