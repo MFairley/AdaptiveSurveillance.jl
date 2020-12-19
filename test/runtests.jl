@@ -1,5 +1,6 @@
 using Test
-using Plots
+# using Plots
+using ForwardDiff
 using AdaptiveSurveillance
 
 # Test Data
@@ -26,9 +27,35 @@ const W = [1.0, 1.0, 1.0, 2.0, 4.0, 4.0, 3.0, 2.0, 2.0, 2.0, 0.0, 4.0, 3.0, 2.0,
 49.0]
 const t = collect(0.0:1.0:length(W)-1)
 
-@testset "logistic Solver" begin
-    @time res1 = solve_logistic_optim(W, t, Γ_true, n)
-    println(res1)
-    @time res2 = solve_logistic_convex(W, t, Γ_true, n)
-    println(res2)
+@testset "Logistic Solver" begin
+
+# @testset "Verify Gradient and Hessian" begin
+#     x = [0.01, 0.02] # change to rand later
+#     tΓ = max.(0, t .- Γ_true)
+#     fun = (x) -> log_likelihood(x, W, tΓ, n)
+#     fun_grad! = (g, x) -> log_likelihood_grad!(g, x, W, tΓ, n)
+#     fun_hess! = (h, x) -> log_likelihood_hess!(h, x, W, tΓ, n)
+
+#     # ForwardDiff
+#     g = x -> ForwardDiff.gradient(fun, x)
+#     h = x -> ForwardDiff.hessian(fun, x)
+
+#     tmp_g = zeros(2)
+#     fun_grad!(tmp_g, x)
+
+#     tmp_h = zeros((2, 2))
+#     fun_hess!(tmp_h, x)
+
+#     println(g(x))
+#     println(tmp_g)
+
+#     println(h(x))
+#     println(tmp_h)
+# end
+
+
+@time res1 = solve_logistic_optim(W, t, Γ_true, n)
+println(res1)
+@time res2 = solve_logistic_convex(W, t, Γ_true, n)
+println(res2)
 end

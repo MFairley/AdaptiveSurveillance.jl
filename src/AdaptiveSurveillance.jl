@@ -37,4 +37,7 @@ export tstate_evsi
 
 export solve_logistic_optim
 export solve_logistic_convex
+export log_likelihood
+export log_likelihood_grad!
+export log_likelihood_hess!
 end # module

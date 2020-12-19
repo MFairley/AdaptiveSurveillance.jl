@@ -20,7 +20,7 @@ end
 function log_likelihood_hess!(h, x, W, tΓ, n)
     coeff = x[1] .* tΓ .+ x[2]
     sigd2 = logistic.(coeff) .* (1 .- logistic.(coeff)) .* (1 .- 2 .* logistic.(coeff))
-    h[1, 1] = -sum(n .* (sigd2 .* tΓ.^2 + sigd2))
+    h[1, 1] = -sum(-n .* (sigd2 .* tΓ.^2 + sigd2))
     h[1, 2] = -sum(-n .* tΓ .* sigd2)
     h[2, 1] = -sum(-n .* tΓ .* sigd2)
     h[2, 2] = -sum(-n .* sigd2)
@@ -34,11 +34,8 @@ function solve_logistic_optim(W, t, Γ, n, x0 = [0.01, logit(0.01)], ux = [1.0, 
     fun_hess! = (h, x) -> log_likelihood_hess!(h, x, W, tΓ, n)
     
     df = TwiceDifferentiable(fun, fun_grad!, fun_hess!, x0)
-    # df = TwiceDifferentiable(fun, x0, autodiff=:forward)
     dfc = TwiceDifferentiableConstraints([0.0, -Inf], ux)
-    println("Starting optim...")
     res = optimize(df, dfc, x0, IPNewton())
-    # res = optimize(df, x0)
 
     return -Optim.minimum(res), Optim.minimizer(res)[1], logistic(Optim.minimizer(res)[2])
 end
