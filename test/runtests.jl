@@ -27,36 +27,39 @@ const W = [1.0, 1.0, 1.0, 2.0, 4.0, 4.0, 3.0, 2.0, 2.0, 2.0, 0.0, 4.0, 3.0, 2.0,
 27.0, 36.0, 34.0, 29.0, 22.0, 17.0, 29.0, 28.0, 23.0, 39.0, 20.0, 28.0, 31.0, 23.0, 37.0, 31.0, 39.0, 
 49.0]
 const t = collect(0.0:1.0:length(W)-1)
+const ux = [1.0, logit(0.5)]
 
 @testset "Logistic Solver" begin
 
-# @testset "Verify Gradient and Hessian" begin
-#     x = [0.01, 0.03] # change to rand later
-#     tΓ = max.(0, t .- Γ_true)
-#     fun = (x) -> log_likelihood(x, W, tΓ, n)
-#     fun_grad! = (g, x) -> log_likelihood_grad!(g, x, W, tΓ, n)
-#     fun_hess! = (h, x) -> log_likelihood_hess!(h, x, W, tΓ, n)
+@testset "Verify Gradient and Hessian" begin
+    n_checks = 1000
+    tΓ = max.(0, t .- Γ_true)
+    G = zeros(2)
+    H = zeros(2, 2)
 
-#     # ForwardDiff
-#     g = x -> ForwardDiff.gradient(fun, x)
-#     h = x -> ForwardDiff.hessian(fun, x)
+    fun = (x) -> log_likelihood(x, tΓ, W, n)
+    fun_grad! = (g, x) -> log_likelihood_grad!(g, x, tΓ, W, n)
+    fun_hess! = (h, x) -> log_likelihood_hess!(h, x, tΓ, W, n)
 
-#     tmp_g = zeros(2)
-#     fun_grad!(tmp_g, x)
+    for i = 1:n_checks
+        x = rand(2) .* [1, 10] .+ [0, -5]
+        # ForwardDiff AutoDiff
+        g = x -> ForwardDiff.gradient(fun, x)
+        h = x -> ForwardDiff.hessian(fun, x)
+        # My gradients
+        fun_grad!(G, x)
+        fun_hess!(H, x)
+        @test all(isapprox.(g(x), G))
+        @test all(isapprox.(h(x), H))
+    end
+end
 
-#     tmp_h = zeros((2, 2))
-#     fun_hess!(tmp_h, x)
+# res1 = solve_logistic_optim(W, t, Γ_true, n)
 
-#     println(g(x))
-#     println(tmp_g)
-
-#     println(h(x))
-#     println(tmp_h)
-# end
-
-
-@benchmark res1 = solve_logistic_optim(W, t, Γ_true, n)
+# lp = profile_log_likelihood(0, 100, 301, W, t, n)
 # println(res1)
 # @time res2 = solve_logistic_convex(W, t, Γ_true, n)
 # println(res2)
+
+# softmax(y_likeli)
 end
