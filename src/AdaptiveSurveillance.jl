@@ -1,16 +1,10 @@
 module AdaptiveSurveillance
 
-# using DifferentialEquations
-
-
 include("sir.jl")
-# include("pomdp0.jl")
-# include("pomdp1.jl")
+include("logistic_solver.jl")
 include("semiparametric_single.jl")
 include("semiparametric.jl")
 
-# import .pomdp0
-# import .pomdp1
 import .sp_single
 
 # export prevalence_cost_model_sir
@@ -40,4 +34,7 @@ export tstate_thompson
 export tstate_const
 
 export tstate_evsi
+
+export solve_logistic_optim
+export solve_logistic_convex
 end # module

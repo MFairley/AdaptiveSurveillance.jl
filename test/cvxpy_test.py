@@ -8,6 +8,7 @@ from scipy.special import expit, softmax
 from scipy.stats import binom
 import matplotlib.pyplot as plt
 import time
+import dask
 
 n = 200
 W = np.array([1.0, 1.0, 1.0, 2.0, 4.0, 4.0, 3.0, 2.0, 2.0, 2.0, 0.0, 4.0, 3.0, 2.0, 2.0, 
@@ -28,7 +29,7 @@ W = np.array([1.0, 1.0, 1.0, 2.0, 4.0, 4.0, 3.0, 2.0, 2.0, 2.0, 0.0, 4.0, 3.0, 2
 27.0, 36.0, 34.0, 29.0, 22.0, 17.0, 29.0, 28.0, 23.0, 39.0, 20.0, 28.0, 31.0, 23.0, 37.0, 31.0, 39.0, 
 49.0])
 t = np.arange(0, len(W))
-t_up = 150
+t_up = 15
 tp = t_up + 10
 
 def create_problem(m, beta_max = 1.0, z_max = 0.0): # m: number of data points
@@ -54,6 +55,14 @@ def solve_problem(n, W, t, tp, m, tmax):
     # f(0, 0) # presolve for caching - this causes an assertion error
     with Pool(processes=8) as pool:
         M = pool.starmap(f, product(range(n+1), range(tmax+1)))
+    # dasklist = [dask.delayed(f)(y, g) for (y, g) in product(range(n+1), range(tmax+1))]
+    # dasklist = [dask.delayed(f)(y, g) for (y, g) in product(range(1), range(1))]
+    # print(dasklist)
+    # M = dask.compute(*dasklist, scheduler = 'processes')
+    # M = 1
+    # M = []
+    # for (i, (y, g)) in enumerate(product(range(n+1), range(tmax+1))):
+        # M.append(f(y, g))
     return M
 
 def maximize_gamma(M, n, tmax):
@@ -85,15 +94,16 @@ def profile_likelihood(n, W, t, tp):
     
     return softmax(logl)
 
-start = time.time()
-pl = profile_likelihood(n, W[0:t_up], t[0:t_up], tp)
-end = time.time()
-print("Time taken was {}".format(end - start))
+if __name__ == '__main__':
+    start = time.time()
+    pl = profile_likelihood(n, W[0:t_up], t[0:t_up], tp)
+    end = time.time()
+    print("Time taken was {}".format(end - start))
 
-fig, ax = plt.subplots()
-ax.bar(np.arange(0, n + 1), pl)
-ax.set_xlabel('Number of Positive Tests')
-ax.set_ylabel('Probability')
-ax.set_title("Predictive Distribution for Time {} at Time {} \n BetaU = 1.0, zU = logit(0.5)".format(tp, t_up))
-fig.savefig("../results/tmp/cvx_pred_dist_{}samples_{}steps.pdf".format(t_up, tp - t_up))
-plt.close(fig)
+    fig, ax = plt.subplots()
+    ax.bar(np.arange(0, n + 1), pl)
+    ax.set_xlabel('Number of Positive Tests')
+    ax.set_ylabel('Probability')
+    ax.set_title("Predictive Distribution for Time {} at Time {} \n BetaU = 1.0, zU = logit(0.5)".format(tp, t_up))
+    fig.savefig("../results/tmp/cvx_pred_dist_{}samples_{}steps.pdf".format(t_up, tp - t_up))
+    plt.close(fig)
