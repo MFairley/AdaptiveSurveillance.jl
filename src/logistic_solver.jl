@@ -20,7 +20,7 @@ end
 function log_likelihood_hess!(h, x, W, tΓ, n)
     coeff = x[1] .* tΓ .+ x[2]
     sigd2 = logistic.(coeff) .* (1 .- logistic.(coeff)) .* (1 .- 2 .* logistic.(coeff))
-    h[1, 1] = -sum(-n .* (sigd2 .* tΓ.^2 + sigd2))
+    h[1, 1] = -sum(-n .* (sigd2 .* tΓ.^2))
     h[1, 2] = -sum(-n .* tΓ .* sigd2)
     h[2, 1] = -sum(-n .* tΓ .* sigd2)
     h[2, 2] = -sum(-n .* sigd2)

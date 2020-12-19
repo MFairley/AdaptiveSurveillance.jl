@@ -30,7 +30,7 @@ const t = collect(0.0:1.0:length(W)-1)
 @testset "Logistic Solver" begin
 
 # @testset "Verify Gradient and Hessian" begin
-#     x = [0.01, 0.02] # change to rand later
+#     x = [0.01, 0.03] # change to rand later
 #     tΓ = max.(0, t .- Γ_true)
 #     fun = (x) -> log_likelihood(x, W, tΓ, n)
 #     fun_grad! = (g, x) -> log_likelihood_grad!(g, x, W, tΓ, n)
