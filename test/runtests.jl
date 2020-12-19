@@ -1,6 +1,7 @@
 using Test
 # using Plots
 using ForwardDiff
+using BenchmarkTools
 using AdaptiveSurveillance
 
 # Test Data
@@ -54,8 +55,8 @@ const t = collect(0.0:1.0:length(W)-1)
 # end
 
 
-@time res1 = solve_logistic_optim(W, t, Γ_true, n)
-println(res1)
-@time res2 = solve_logistic_convex(W, t, Γ_true, n)
-println(res2)
+@benchmark res1 = solve_logistic_optim(W, t, Γ_true, n)
+# println(res1)
+# @time res2 = solve_logistic_convex(W, t, Γ_true, n)
+# println(res2)
 end

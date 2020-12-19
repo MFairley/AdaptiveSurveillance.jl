@@ -3,7 +3,6 @@ using StatsBase
 import Convex, Mosek, MosekTools
 
 ### Optim
-
 function log_likelihood(x, W, tΓ, n)
     # x: [beta, z]
     coeff = x[1] .* tΓ .+ x[2]
@@ -22,9 +21,29 @@ function log_likelihood_hess!(h, x, W, tΓ, n)
     sigd2 = logistic.(coeff) .* (1 .- logistic.(coeff)) .* (1 .- 2 .* logistic.(coeff))
     h[1, 1] = -sum(-n .* (sigd2 .* tΓ.^2))
     h[1, 2] = -sum(-n .* tΓ .* sigd2)
-    h[2, 1] = -sum(-n .* tΓ .* sigd2)
+    h[2, 1] = h[1, 2]
     h[2, 2] = -sum(-n .* sigd2)
 end
+
+function log_likelihood_fgh!(f, g, h, x, W, tΓ, n)
+    coeff = x[1] .* tΓ .+ x[2]
+    if !isnothing(g)
+        sigd1 = logistic.(coeff) .* (1 .- logistic.(coeff))
+        g[1] = -sum(W .* tΓ .- n .* sigd1 .* tΓ)
+        g[2] = -sum(W .- n .* sigd1)
+    end
+    if !isnothing(h)
+        sigd2 = logistic.(coeff) .* (1 .- logistic.(coeff)) .* (1 .- 2 .* logistic.(coeff))
+        h[1, 1] = -sum(-n .* (sigd2 .* tΓ.^2))
+        h[1, 2] = -sum(-n .* tΓ .* sigd2)
+        h[2, 1] = h[1, 2]
+        h[2, 2] = -sum(-n .* sigd2)
+    end
+    if !isnothing(f)
+        return -sum(W .* coeff .- n .* logistic.(coeff))
+    end
+    nothing
+  end
 
 function solve_logistic_optim(W, t, Γ, n, x0 = [0.01, logit(0.01)], ux = [1.0, logit(0.5)])
     tΓ = max.(0, t .- Γ)
@@ -32,8 +51,10 @@ function solve_logistic_optim(W, t, Γ, n, x0 = [0.01, logit(0.01)], ux = [1.0, 
     fun = (x) -> log_likelihood(x, W, tΓ, n)
     fun_grad! = (g, x) -> log_likelihood_grad!(g, x, W, tΓ, n)
     fun_hess! = (h, x) -> log_likelihood_hess!(h, x, W, tΓ, n)
+    fun_fgh! = (f, g, h, x) -> log_likelihood_fgh!(f, g, h, x, W, tΓ, n)
     
     df = TwiceDifferentiable(fun, fun_grad!, fun_hess!, x0)
+    # df = TwiceDifferentiable(Optim.only_fgh!(fun_fgh!), x0)
     dfc = TwiceDifferentiableConstraints([0.0, -Inf], ux)
     res = optimize(df, dfc, x0, IPNewton())
 
