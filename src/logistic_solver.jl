@@ -78,20 +78,11 @@ function solve_logistic_optim(t, W, n)
     Threads.@threads for Γ = 0:maximum(t)
         obj, β, z = solve_logistic_Γ_subproblem_optim(Γ, t, W, n)
         # obj, β, z = solve_logistic_Γ_subproblem_convex(Γ, t, W, n)
-        # println("beta = $β")
-        # println("z = $z")
-        # println("Γ = $Γ")
-        # println("obj = $obj")
-        # println("")
         if obj >= max_obj
             max_obj = obj
             βs, zs, Γs = β, z, Γ
         end
     end
-    # println("beta = $βs")
-    # println("z = $zs")
-    # println("Γ = $Γs")
-    # println(max_obj)
     return max_obj, βs, zs, Γs
 end
 

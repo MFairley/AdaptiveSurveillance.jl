@@ -35,38 +35,41 @@ end
 
 @testset "Verify Solver" begin
 rng = MersenneTwister(1234)
-for i = 1:Int(maximum(t))
-    for Γ = 0:(i+1)
-        if rand(rng) >= 0.01 # do a fraction of the tests for speed
+for i = 1:length(t)
+    for Γ = 0:(i-1)
+        if rand(rng) >= 0.01 || sum(max.(0, t[1:i] .- Γ)) == 0 # do a fraction of the tests for speed
+            # beta value non-identifiable when sum(max.(0, t[1:i] .- Γ)) == 0
             continue
         end
+        # println("i = $i")
+        # println("Γ= $Γ")
         objo, βo, zo = AdaptiveSurveillance.solve_logistic_Γ_subproblem_optim(Γ, t[1:i], W[1:i], n)
         objc, βc, zc = AdaptiveSurveillance.solve_logistic_Γ_subproblem_convex(Γ, t[1:i], W[1:i], n)
         @test isapprox(objo, objc, rtol=0.15)
-        @test isapprox(βo, βc, rtol=0.15)
-        @test isapprox(zo, zc, rtol=0.15)
+        @test isapprox(βo, βc, atol=1e-2)
+        @test isapprox(zo, zc, atol=1e-2)
     end
 end
 end
 
-# @testset "Profile Likelihood" begin
-# ti, tp = 2, 3 # time at prediction, time to predict
-# plot_profile_likelihood(0, n, tp, t[1:ti+1], W[1:ti+1], n, path = save_path)
+@testset "Profile Likelihood" begin
+ti, tp = 2, 3 # time at prediction, time to predict
+plot_profile_likelihood(0, n, tp, t[1:ti+1], W[1:ti+1], n, path = save_path)
 
-# ti, tp = 2, 12
-# plot_profile_likelihood(0, n, tp, t[1:ti+1], W[1:ti+1], n, path = save_path)
+ti, tp = 2, 12
+plot_profile_likelihood(0, n, tp, t[1:ti+1], W[1:ti+1], n, path = save_path)
 
-# ti, tp = 50, 51
-# plot_profile_likelihood(0, n, tp, t[1:ti+1], W[1:ti+1], n, path = save_path)
+ti, tp = 50, 51
+plot_profile_likelihood(0, n, tp, t[1:ti+1], W[1:ti+1], n, path = save_path)
 
-# ti, tp = 50, 60
-# plot_profile_likelihood(0, n, tp, t[1:ti+1], W[1:ti+1], n, path = save_path)
+ti, tp = 50, 60
+plot_profile_likelihood(0, n, tp, t[1:ti+1], W[1:ti+1], n, path = save_path)
 
-# ti, tp = 150, 151
-# plot_profile_likelihood(0, n, tp, t[1:ti+1], W[1:ti+1], n, path = save_path)
+ti, tp = 150, 151
+plot_profile_likelihood(0, n, tp, t[1:ti+1], W[1:ti+1], n, path = save_path)
 
-# ti, tp = 150, 160
-# plot_profile_likelihood(0, n, tp, t[1:ti+1], W[1:ti+1], n, path = save_path)
+ti, tp = 150, 160
+plot_profile_likelihood(0, n, tp, t[1:ti+1], W[1:ti+1], n, path = save_path)
 
-# end
+end
 end
