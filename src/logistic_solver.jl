@@ -104,7 +104,7 @@ function future_alarm_log_probability(n1, n2, tp, W, t, n)
 end
 
 ### Convex.jl
-function solve_logistic_Γ_subproblem_convex(Γ, W, t, n, ux = [1.0, logit(0.5)])
+function solve_logistic_Γ_subproblem_convex(Γ, t, W, n, ux = [1.0, logit(0.5)])
     tΓ = max.(0, t .- Γ)
     β = Convex.Variable(Convex.Positive())
     z = Convex.Variable()
@@ -112,5 +112,5 @@ function solve_logistic_Γ_subproblem_convex(Γ, W, t, n, ux = [1.0, logit(0.5)]
     obj = Convex.dot(W, coeff) - n * Convex.logisticloss(coeff)
     problem = Convex.maximize(obj, β <= ux[1], z <= ux[2])
     Convex.solve!(problem, () -> Mosek.Optimizer(QUIET=true), verbose=false)
-    return problem.optval, Convex.evaluate(β), logistic(Convex.evaluate(z))
+    return problem.optval, Convex.evaluate(β), Convex.evaluate(z)
 end
