@@ -17,7 +17,7 @@ include("test_data.jl")
 
     fun = (x) -> AdaptiveSurveillance.log_likelihood(x, tΓ, W, n)
     fun_grad! = (g, x) -> AdaptiveSurveillance.log_likelihood_grad!(g, x, tΓ, W, n)
-    fun_hess! = (h, x) -> AdaptiveSurveillance.log_likelihood_hess!(h, x, tΓ, W, n)
+    fun_hess! = (h, x) -> AdaptiveSurveillance.log_likelihood_hess!(h, x, tΓ, n)
 
     for i = 1:n_checks
         x = rand(2) .* [1, 10] .+ [0, -5]
