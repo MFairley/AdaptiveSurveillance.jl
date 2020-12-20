@@ -100,20 +100,16 @@ function profile_log_likelihood(n1, n2, tp, t, W, n)
     return lp
 end
 
-function profile_likelihood(n1, n2, tp, t, W, n)
-    return softmax(profile_log_likelihood(n1, n2, tp, t, W, n)) # bug here for restricted n1 and n2
-end
-
 function future_alarm_log_probability(n1, n2, tp, W, t, n)
     return logsumexp(profile_log_likelihood(n1, n2, tp, t, W, n))
 end
 
-function future_alarm_probability(n1, n2, tp, W, t, n)
-    return sum(softmax(profile_log_likelihood(n1, n2, tp, t, W, n)))
+function profile_likelihood(tp, t, W, n)
+    return softmax(profile_log_likelihood(0, n, tp, t, W, n))
 end
 
-function plot_profile_likelihood(n1, n2, tp, t, W, n; path = "")
-    pl = profile_likelihood(n1, n2, tp, t, W, n)
+function plot_profile_likelihood(tp, t, W, n; path = "")
+    pl = profile_likelihood(tp, t, W, n)
     bar(n1:n2, pl, xlabel = "Number of Positive Tests", ylabel = "Probability", 
         legend=false, title = "Profile Likelihood for time $(tp) at time $(Int(maximum(t)))")
     savefig(joinpath(path, "profile_likelihood_$(tp)_$(Int(maximum(t))).pdf"))
