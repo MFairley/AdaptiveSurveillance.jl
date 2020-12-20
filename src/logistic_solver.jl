@@ -93,7 +93,7 @@ function profile_log_likelihood(n1, n2, tp, t, W, n)
     t = vcat(t, tp)
     lp = zeros(n2 - n1 + 1)
     for (j, i) in enumerate(n1:n2)
-        W[end] = i
+        W[end] = i # this makes this not parallel
         _, β, z, Γ = solve_logistic_optim(t, W, n)
         lp[j] = normalized_log_likelihood(β, z, Γ, t, W, n)
     end

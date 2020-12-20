@@ -2,7 +2,6 @@ using Test
 using Random
 # using Plots
 using ForwardDiff
-using BenchmarkTools
 using AdaptiveSurveillance
 
 const save_path = joinpath(dirname(pathof(AdaptiveSurveillance)), "..", "test", "tmp")
