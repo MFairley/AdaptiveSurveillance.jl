@@ -1,6 +1,7 @@
 using Optim, NLSolversBase, Random, Distributions
 using StatsBase
 import Convex, Mosek, MosekTools
+using Plots
 
 ### Optim
 function normalized_log_likelihood(β, z, Γ, t, W, n)
@@ -12,13 +13,13 @@ end
 function log_likelihood(x, tΓ, W, n)
     β, z = x[1], x[2]
     coeff = β .* tΓ .+ z
-    return -sum(W .* coeff .- n .* logistic.(coeff))
+    return -sum(W .* coeff .- n .* log1pexp.(coeff))
 end
 
 function log_likelihood_grad!(g, x, tΓ, W, n)
     β, z = x[1], x[2]
     coeff = β .* tΓ .+ z
-    sigd1 = logistic.(coeff) .* (1 .- logistic.(coeff)) 
+    sigd1 = logistic.(coeff)
     g[1] = -sum(W .* tΓ .- n .* sigd1 .* tΓ)
     g[2] = -sum(W .- n .* sigd1)
 end
@@ -26,7 +27,7 @@ end
 function log_likelihood_hess!(h, x, tΓ, W, n)
     β, z = x[1], x[2]
     coeff = β .* tΓ .+ z
-    sigd2 = logistic.(coeff) .* (1 .- logistic.(coeff)) .* (1 .- 2 .* logistic.(coeff))
+    sigd2 = logistic.(coeff) .* (1 .- logistic.(coeff))
     h[1, 1] = -sum(-n .* (sigd2 .* tΓ.^2))
     h[1, 2] = -sum(-n .* tΓ .* sigd2)
     h[2, 1] = h[1, 2]
@@ -37,32 +38,32 @@ function log_likelihood_fgh!(f, g, h, x, tΓ, W, n)
     β, z = x[1], x[2]
     coeff = β .* tΓ .+ z
     if !isnothing(g)
-        sigd1 = logistic.(coeff) .* (1 .- logistic.(coeff))
+        sigd1 = logistic.(coeff)
         g[1] = -sum(W .* tΓ .- n .* sigd1 .* tΓ)
         g[2] = -sum(W .- n .* sigd1)
     end
     if !isnothing(h)
-        sigd2 = logistic.(coeff) .* (1 .- logistic.(coeff)) .* (1 .- 2 .* logistic.(coeff))
+        sigd2 = logistic.(coeff) .* (1 .- logistic.(coeff))
         h[1, 1] = -sum(-n .* (sigd2 .* tΓ.^2))
         h[1, 2] = -sum(-n .* tΓ .* sigd2)
         h[2, 1] = h[1, 2]
         h[2, 2] = -sum(-n .* sigd2)
     end
     if !isnothing(f)
-        return -sum(W .* coeff .- n .* logistic.(coeff))
+        return -sum(W .* coeff .- n .* log1pexp.(coeff))
     end
     nothing
   end
 
 function solve_logistic_Γ_subproblem_optim(Γ, t, W, n, x0 = [0.01, logit(0.01)], ux = [1.0, logit(0.5)])
     tΓ = max.(0, t .- Γ)
-    fun = (x) -> log_likelihood(x, tΓ, W, n)
-    fun_grad! = (g, x) -> log_likelihood_grad!(g, x, tΓ, W, n)
-    fun_hess! = (h, x) -> log_likelihood_hess!(h, x, tΓ, W, n)
-    # fun_fgh! = (f, g, h, x) -> log_likelihood_fgh!(f, g, h, x, tΓ, W, n)
+    # fun = (x) -> log_likelihood(x, tΓ, W, n)
+    # fun_grad! = (g, x) -> log_likelihood_grad!(g, x, tΓ, W, n)
+    # fun_hess! = (h, x) -> log_likelihood_hess!(h, x, tΓ, W, n)
+    fun_fgh! = (f, g, h, x) -> log_likelihood_fgh!(f, g, h, x, tΓ, W, n)
     
-    df = TwiceDifferentiable(fun, fun_grad!, fun_hess!, x0)
-    # df = TwiceDifferentiable(Optim.only_fgh!(fun_fgh!), x0)
+    # df = TwiceDifferentiable(fun, fun_grad!, fun_hess!, x0)
+    df = TwiceDifferentiable(Optim.only_fgh!(fun_fgh!), x0)
     dfc = TwiceDifferentiableConstraints([0.0, -Inf], ux)
     res = optimize(df, dfc, x0, IPNewton())
     obj = -Optim.minimum(res)
@@ -73,15 +74,25 @@ end
 
 function solve_logistic_optim(t, W, n)
     max_obj = -Inf
-    Βs, zs, Γs = 0.0, 0.0, 0
-    for Γ = 0:maximum(t)
+    βs, zs, Γs = 0.0, 0.0, 0
+    Threads.@threads for Γ = 0:maximum(t)
         obj, β, z = solve_logistic_Γ_subproblem_optim(Γ, t, W, n)
+        # obj, β, z = solve_logistic_Γ_subproblem_convex(Γ, t, W, n)
+        # println("beta = $β")
+        # println("z = $z")
+        # println("Γ = $Γ")
+        # println("obj = $obj")
+        # println("")
         if obj >= max_obj
             max_obj = obj
-            Βs, zs, Γs = β, z, Γ
+            βs, zs, Γs = β, z, Γ
         end
     end
-    return max_obj, Βs, zs, Γs
+    # println("beta = $βs")
+    # println("z = $zs")
+    # println("Γ = $Γs")
+    # println(max_obj)
+    return max_obj, βs, zs, Γs
 end
 
 function profile_log_likelihood(n1, n2, tp, t, W, n)
@@ -98,9 +109,24 @@ function profile_log_likelihood(n1, n2, tp, t, W, n)
     return lp
 end
 
+function profile_likelihood(n1, n2, tp, t, W, n)
+    return softmax(profile_log_likelihood(n1, n2, tp, t, W, n)) # bug here for restricted n1 and n2
+end
+
 function future_alarm_log_probability(n1, n2, tp, W, t, n)
-    lp = profile_log_likelihood(n1, n2, tp, t, W, n)
-    return logsumexp(lp)
+    return logsumexp(profile_log_likelihood(n1, n2, tp, t, W, n))
+end
+
+function future_alarm_probability(n1, n2, tp, W, t, n)
+    return sum(softmax(profile_log_likelihood(n1, n2, tp, t, W, n)))
+end
+
+function plot_profile_likelihood(n1, n2, tp, t, W, n; path = "")
+    pl = profile_likelihood(n1, n2, tp, t, W, n)
+    bar(n1:n2, pl, xlabel = "Number of Positive Tests", ylabel = "Probability", 
+        legend=false, title = "Profile Likelihood for time $(tp) at time $(Int(maximum(t)))")
+    savefig(joinpath(path, "profile_likelihood_$(tp)_$(Int(maximum(t))).pdf"))
+    return pl
 end
 
 ### Convex.jl

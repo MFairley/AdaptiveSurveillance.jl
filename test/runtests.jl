@@ -5,6 +5,8 @@ using ForwardDiff
 using BenchmarkTools
 using AdaptiveSurveillance
 
+const save_path = joinpath(dirname(pathof(AdaptiveSurveillance)), "..", "test", "tmp")
+
 include("test_data.jl")
 
 @testset "Logistic Solver" begin
@@ -33,13 +35,13 @@ end
 
 @testset "Verify Solver" begin
 rng = MersenneTwister(1234)
-for i = 1:maximum(t)
+for i = 1:Int(maximum(t))
     for Γ = 0:(i+1)
-        if rand(rng) >= 0.001 # do a fraction of the tests for speed
+        if rand(rng) >= 0.01 # do a fraction of the tests for speed
             continue
         end
-        objo, βo, zo = AdaptiveSurveillance.solve_logistic_Γ_subproblem_optim(Γ, t, W, n)
-        objc, βc, zc = AdaptiveSurveillance.solve_logistic_Γ_subproblem_convex(Γ, t, W, n)
+        objo, βo, zo = AdaptiveSurveillance.solve_logistic_Γ_subproblem_optim(Γ, t[1:i], W[1:i], n)
+        objc, βc, zc = AdaptiveSurveillance.solve_logistic_Γ_subproblem_convex(Γ, t[1:i], W[1:i], n)
         @test isapprox(objo, objc, rtol=0.15)
         @test isapprox(βo, βc, rtol=0.15)
         @test isapprox(zo, zc, rtol=0.15)
@@ -47,12 +49,24 @@ for i = 1:maximum(t)
 end
 end
 
-# res1 = solve_logistic_optim(W, t, Γ_true, n)
+# @testset "Profile Likelihood" begin
+# ti, tp = 2, 3 # time at prediction, time to predict
+# plot_profile_likelihood(0, n, tp, t[1:ti+1], W[1:ti+1], n, path = save_path)
 
-# lp = profile_log_likelihood(0, 100, 301, W, t, n)
-# println(res1)
-# @time res2 = solve_logistic_convex(W, t, Γ_true, n)
-# println(res2)
+# ti, tp = 2, 12
+# plot_profile_likelihood(0, n, tp, t[1:ti+1], W[1:ti+1], n, path = save_path)
 
-# softmax(y_likeli)
+# ti, tp = 50, 51
+# plot_profile_likelihood(0, n, tp, t[1:ti+1], W[1:ti+1], n, path = save_path)
+
+# ti, tp = 50, 60
+# plot_profile_likelihood(0, n, tp, t[1:ti+1], W[1:ti+1], n, path = save_path)
+
+# ti, tp = 150, 151
+# plot_profile_likelihood(0, n, tp, t[1:ti+1], W[1:ti+1], n, path = save_path)
+
+# ti, tp = 150, 160
+# plot_profile_likelihood(0, n, tp, t[1:ti+1], W[1:ti+1], n, path = save_path)
+
+# end
 end

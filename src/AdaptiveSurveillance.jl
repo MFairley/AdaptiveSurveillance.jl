@@ -41,4 +41,7 @@ export tstate_evsi
 # export log_likelihood_grad!
 # export log_likelihood_hess!
 # export profile_log_likelihood
+
+export profile_likelihood
+export plot_profile_likelihood
 end # module
