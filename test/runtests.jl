@@ -52,22 +52,22 @@ end
 end
 
 @testset "Profile Likelihood" begin
-# ti, tp = 2, 3 # time at prediction, time to predict
-# plot_profile_likelihood(tp, t[1:ti+1], W[1:ti+1], n, path = save_path)
+ti, tp = 2, 3 # time at prediction, time to predict
+plot_profile_likelihood(tp, t[1:ti+1], W[1:ti+1], n, path = save_path)
 
-# ti, tp = 2, 12
-# plot_profile_likelihood(tp, t[1:ti+1], W[1:ti+1], n, path = save_path)
+ti, tp = 2, 12
+plot_profile_likelihood(tp, t[1:ti+1], W[1:ti+1], n, path = save_path)
 
-# ti, tp = 50, 51
-# plot_profile_likelihood(tp, t[1:ti+1], W[1:ti+1], n, path = save_path)
+ti, tp = 50, 51
+plot_profile_likelihood(tp, t[1:ti+1], W[1:ti+1], n, path = save_path)
 
-# ti, tp = 50, 60
-# plot_profile_likelihood(tp, t[1:ti+1], W[1:ti+1], n, path = save_path)
+ti, tp = 50, 60
+plot_profile_likelihood(tp, t[1:ti+1], W[1:ti+1], n, path = save_path)
 
-# ti, tp = 150, 151
-# plot_profile_likelihood(tp, t[1:ti+1], W[1:ti+1], n, path = save_path)
+ti, tp = 150, 151
+plot_profile_likelihood(tp, t[1:ti+1], W[1:ti+1], n, path = save_path)
 
-# ti, tp = 150, 160
-# plot_profile_likelihood(tp, t[1:ti+1], W[1:ti+1], n, path = save_path)
+ti, tp = 150, 160
+plot_profile_likelihood(tp, t[1:ti+1], W[1:ti+1], n, path = save_path)
 end
 end

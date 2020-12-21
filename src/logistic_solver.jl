@@ -11,9 +11,9 @@ function f_coeff(β, z, Γ::Int64, t::Int64)
 end
 
 function normalized_log_likelihood_scalar(β::Float64, z::Float64, Γ::Int64, t::Int64, W::Int64, n::Int64)
-    _, coeff = f_coeff(β, z, Γ, t[i])
+    _, coeff = f_coeff(β, z, Γ, t)
     p = logistic(coeff)
-    return logpdf(Binomial(n, p), W[i])
+    return logpdf(Binomial(n, p), W)
 end
 
 function normalized_log_likelihood(β::Float64, z::Float64, Γ::Int64, tp::Int64, Wp::Int64, t::Array{Int64}, W::Array{Int64}, n::Int64)
@@ -96,7 +96,7 @@ end
 
 function solve_logistic_optim(tp::Int64, Wp::Int64, t::Array{Int64}, W::Array{Int64}, n::Int64)
     max_obj, βs, zs, Γs = -Inf, 0.0, 0.0, 0
-    for Γ = 0:maximum(t) #  # to do, fix type instability here  # Threads.@threads 
+    Threads.@threads for Γ = 0:maximum(t) #  # to do, fix type instability here  # Threads.@threads 
         obj, β, z = solve_logistic_Γ_subproblem_optim(Γ, tp, Wp, t, W, n)
         # obj, β, z = solve_logistic_Γ_subproblem_convex(Γ, vcat(t, tp), vcat(W, Wp), n)
         if obj >= max_obj
@@ -110,13 +110,15 @@ end
 function profile_log_likelihood(n1::Int64, n2::Int64, tp::Int64, t::Array{Int64}, W::Array{Int64}, n::Int64)
     @assert n1 <= n2
     @assert tp > maximum(t)
-    # W = vcat(W, n1)
-    # t = vcat(t, tp)
+    @assert 0 <= n1 <= n
+    @assert 0 <= n2 <= n
+    @assert all(0 .<= W .<= n)
+    @assert all(t .>= 0)
     lp = zeros(n2 - n1 + 1)
-    for (i, Wp) in enumerate(n1:n2)
-        # W[end] = i # this makes this not parallel
-        _, β, z, Γ = solve_logistic_optim(tp, Wp, t, W, n)
-        lp[i] = normalized_log_likelihood(β, z, Γ, tp, Wp, t, W, n)
+    Wp_range = n1:n2
+    Threads.@threads for i = 1:length(Wp_range)
+        _, β, z, Γ = solve_logistic_optim(tp, Wp_range[i], t, W, n)
+        lp[i] = normalized_log_likelihood(β, z, Γ, tp, Wp_range[i], t, W, n)
     end
     return lp
 end
@@ -131,7 +133,7 @@ end
 
 function plot_profile_likelihood(tp, t, W, n; path = "")
     pl = profile_likelihood(tp, t, W, n)
-    bar(n1:n2, pl, xlabel = "Number of Positive Tests", ylabel = "Probability", 
+    bar(0:n, pl, xlabel = "Number of Positive Tests", ylabel = "Probability", 
         legend=false, title = "Profile Likelihood for time $(tp) at time $(Int(maximum(t)))")
     savefig(joinpath(path, "profile_likelihood_$(tp)_$(Int(maximum(t))).pdf"))
     return pl
