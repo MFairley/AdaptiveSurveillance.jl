@@ -3,6 +3,7 @@ using Test
 using Random
 using Profile
 # using Plots
+using StatsBase
 using ForwardDiff
 using BenchmarkTools
 
@@ -15,8 +16,6 @@ include("test_data.jl")
 ti, tp = 50, 55 # time at prediction, time to predict
 Wr, tr = W[1:ti+1], t[1:ti+1] # prevent memory allocation from this showing
 Γr = 25
-tΓ = max.(0, tr .- Γr)
-tΓ1 = hcat(max.(0, tr .- Γr), ones(Int64, length(tΓ)))
 x = [β_true, logit(p0_true)]
 G = zeros(2)
 H = zeros(2, 2)

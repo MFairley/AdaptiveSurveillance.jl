@@ -1,8 +1,13 @@
 using Optim, NLSolversBase, Random, Distributions
-using StatsBase
+using StatsBase, StatsFuns
 import Convex, Mosek, MosekTools
 using Plots
-# using LinearAlgebra
+
+# Defining constants like this seems to work but could cause thread problems.
+# const x0 = [0.01, logit(0.01)]
+# const lx = [0.0, -Inf]
+# const ux = [1.0, logit(0.5)]
+# const dfc = TwiceDifferentiableConstraints(lx, ux)
 
 ### Optim
 function normalized_log_likelihood(β::Float64, z::Float64, Γ::Int64, t::Array{Int64}, W::Array{Float64}, n::Int64)
@@ -57,13 +62,15 @@ function log_likelihood_hess!(h::Array{Float64}, x::Array{Float64}, Γ::Int64, t
     end
 end
 
-function solve_logistic_Γ_subproblem_optim(Γ::Int64, t::Array{Int64}, W::Array{Float64}, n::Int64, x0 = [0.01, logit(0.01)], ux = [1.0, logit(0.5)])
+function solve_logistic_Γ_subproblem_optim(Γ::Int64, t::Array{Int64}, W::Array{Float64}, n::Int64,
+    x0 = [0.01, logit(0.01)], lx = [0.0, -Inf], ux = [1.0, logit(0.5)])
     fun = (x) -> log_likelihood(x, Γ, t, W, n)
     fun_grad! = (g, x) -> log_likelihood_grad!(g, x,  Γ, t, W, n)
     fun_hess! = (h, x) -> log_likelihood_hess!(h, x, Γ, t, n)
     
     df = TwiceDifferentiable(fun, fun_grad!, fun_hess!, x0)
-    dfc = TwiceDifferentiableConstraints([0.0, -Inf], ux)
+    dfc = TwiceDifferentiableConstraints(lx, ux)
+    
     res = optimize(df, dfc, x0, IPNewton())
     obj = -Optim.minimum(res)
     β, z = Optim.minimizer(res)
@@ -73,7 +80,7 @@ end
 
 function solve_logistic_optim(t::Array{Int64}, W::Array{Float64}, n::Int64)
     max_obj, βs, zs, Γs = -Inf, 0.0, 0.0, 0
-    for Γ = 0:maximum(t) # Threads.@threads # to do, fix type instability here 
+    for Γ = 0:maximum(t) #  # to do, fix type instability here  # Threads.@threads 
         obj, β, z = solve_logistic_Γ_subproblem_optim(Γ, t, W, n)
         # obj, β, z = solve_logistic_Γ_subproblem_convex(Γ, t, W, n)
         if obj >= max_obj
