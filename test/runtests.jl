@@ -11,13 +11,12 @@ include("test_data.jl")
 @testset "Logistic Solver" begin
 @testset "Verify Gradient and Hessian" begin
     n_checks = 1000
-    tΓ = max.(0, t .- Γ_true)
     G = zeros(2)
     H = zeros(2, 2)
 
-    fun = (x) -> AdaptiveSurveillance.log_likelihood(x, tΓ, W, n)
-    fun_grad! = (g, x) -> AdaptiveSurveillance.log_likelihood_grad!(g, x, tΓ, W, n)
-    fun_hess! = (h, x) -> AdaptiveSurveillance.log_likelihood_hess!(h, x, tΓ, n)
+    fun = (x) -> AdaptiveSurveillance.log_likelihood(x, Γ_true, t, W, n)
+    fun_grad! = (g, x) -> AdaptiveSurveillance.log_likelihood_grad!(g, x, Γ_true, t, W, n)
+    fun_hess! = (h, x) -> AdaptiveSurveillance.log_likelihood_hess!(h, x, Γ_true, t, n)
 
     for i = 1:n_checks
         x = rand(2) .* [1, 10] .+ [0, -5]

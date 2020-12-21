@@ -6,54 +6,61 @@ using Plots
 
 ### Optim
 function normalized_log_likelihood(β::Float64, z::Float64, Γ::Int64, t::Array{Int64}, W::Array{Float64}, n::Int64)
-    tΓ = max.(0, t .- Γ)
-    p = logistic.(β * tΓ .+ z)
-    return sum(logpdf(Binomial(n, p[i]), W[i]) for i = 1:length(W))
+    f = 0.0
+    for i = 1:length(W)
+        tΓ = max(0, t[i] - Γ)
+        coeff = β * tΓ  + z
+        p = logistic(coeff)
+        f += logpdf(Binomial(n, p), W[i])
+    end
+    return f
 end
 
-function log_likelihood(x, tΓ::Array{Int64}, W::Array{Float64}, n::Int64)
+function log_likelihood(x, Γ::Int64, t::Array{Int64}, W::Array{Float64}, n::Int64)
     β, z = x[1], x[2]
     f = 0.0
     for i = 1:length(W)
-        coeff = β * tΓ[i] + z
+        tΓ = max(0, t[i] - Γ)
+        coeff = β * tΓ  + z
         f -= W[i] * coeff - n * log1pexp(coeff)
     end
     return f
 end
 
-function log_likelihood_grad!(g::Array{Float64}, x::Array{Float64}, tΓ::Array{Int64}, W::Array{Float64}, n::Int64)
+function log_likelihood_grad!(g::Array{Float64}, x::Array{Float64}, Γ::Int64, t::Array{Int64}, W::Array{Float64}, n::Int64)
     β, z = x[1], x[2]
     g[1] = 0.0
     g[2] = 0.0
     for i = 1:length(W)
-        coeff = β * tΓ[i] + z
+        tΓ = max(0, t[i] - Γ)
+        coeff = β * tΓ  + z
         sigd1 = logistic(coeff)
-        g[1] -= W[i] * tΓ[i] - n * sigd1 * tΓ[i]
+        g[1] -= W[i] * tΓ - n * sigd1 * tΓ
         g[2] -= W[i] - n * sigd1
     end
 end
 
-function log_likelihood_hess!(h::Array{Float64}, x::Array{Float64}, tΓ::Array{Int64}, n::Int64)
+function log_likelihood_hess!(h::Array{Float64}, x::Array{Float64}, Γ::Int64, t::Array{Int64}, n::Int64)
     β, z = x[1], x[2]
     h[1, 1] = 0.0
     h[1, 2] = 0.0
     h[2, 1] = 0.0
     h[2, 2] = 0.0
-    for i = 1:length(tΓ)
-        coeff = β * tΓ[i] + z
+    for i = 1:length(t)
+        tΓ = max(0, t[i] - Γ)
+        coeff = β * tΓ  + z
         sigd2 = logistic(coeff) * (1 - logistic(coeff))
-        h[1, 1] -= -n * (sigd2 * tΓ[i]^2)
-        h[1, 2] -= -n * tΓ[i] * sigd2
-        h[2, 1] -= -n * tΓ[i] * sigd2
+        h[1, 1] -= -n * (sigd2 * tΓ^2)
+        h[1, 2] -= -n * tΓ * sigd2
+        h[2, 1] -= -n * tΓ * sigd2
         h[2, 2] -= -n * sigd2
     end
 end
 
 function solve_logistic_Γ_subproblem_optim(Γ::Int64, t::Array{Int64}, W::Array{Float64}, n::Int64, x0 = [0.01, logit(0.01)], ux = [1.0, logit(0.5)])
-    tΓ = max.(0, t .- Γ)
-    fun = (x) -> log_likelihood(x, tΓ, W, n)
-    fun_grad! = (g, x) -> log_likelihood_grad!(g, x, tΓ, W, n)
-    fun_hess! = (h, x) -> log_likelihood_hess!(h, x, tΓ, n)
+    fun = (x) -> log_likelihood(x, Γ, t, W, n)
+    fun_grad! = (g, x) -> log_likelihood_grad!(g, x,  Γ, t, W, n)
+    fun_hess! = (h, x) -> log_likelihood_hess!(h, x, Γ, t, n)
     
     df = TwiceDifferentiable(fun, fun_grad!, fun_hess!, x0)
     dfc = TwiceDifferentiableConstraints([0.0, -Inf], ux)

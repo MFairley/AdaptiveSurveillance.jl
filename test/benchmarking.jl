@@ -33,9 +33,9 @@ H = zeros(2, 2)
 # @code_warntype AdaptiveSurveillance.future_alarm_log_probability(0, 100, tp, tr, Wr, n)
 
 # Meomory allocation
-# AdaptiveSurveillance.future_alarm_log_probability(0, 100, tp, Wr, tr, n)
-# Profile.clear_malloc_data()
-# AdaptiveSurveillance.future_alarm_log_probability(0, 100, tp, Wr, tr, n)
+AdaptiveSurveillance.future_alarm_log_probability(0, 100, tp, Wr, tr, n)
+Profile.clear_malloc_data()
+AdaptiveSurveillance.future_alarm_log_probability(0, 100, tp, Wr, tr, n)
 
 # Benchmarking
 # @benchmark AdaptiveSurveillance.future_alarm_log_probability(0, 100, $tp, $Wr, $tr, $n)

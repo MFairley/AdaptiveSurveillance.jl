@@ -2,6 +2,7 @@
         - using StatsBase
         - import Convex, Mosek, MosekTools
         - using Plots
+        - # using LinearAlgebra
         - 
         - ### Optim
         - function normalized_log_likelihood(β::Float64, z::Float64, Γ::Int64, t::Array{Int64}, W::Array{Float64}, n::Int64)
@@ -11,59 +12,50 @@
         - end
         - 
         - function log_likelihood(x, tΓ::Array{Int64}, W::Array{Float64}, n::Int64)
-        -     β, z = x[1], x[2]
-        -     coeff = β .* tΓ .+ z
-        -     return -sum(W .* coeff .- n .* log1pexp.(coeff))
+        0     β, z = x[1], x[2]
+        -     f = 0.0
+        0     for i = 1:length(W)
+        0         coeff = β * tΓ[i] + z
+        0         f -= W[i] * coeff - n * log1pexp(coeff)
+        -     end
+        0     return f
         - end
         - 
         - function log_likelihood_grad!(g::Array{Float64}, x::Array{Float64}, tΓ::Array{Int64}, W::Array{Float64}, n::Int64)
-        -     β, z = x[1], x[2]
-        -     coeff = β .* tΓ .+ z
-        -     sigd1 = logistic.(coeff)
-        -     g[1] = -sum(W .* tΓ .- n .* sigd1 .* tΓ)
-        -     g[2] = -sum(W .- n .* sigd1)
+        0     β, z = x[1], x[2]
+        0     g[1] = 0.0
+        0     g[2] = 0.0
+        0     for i = 1:length(W)
+        0         coeff = β * tΓ[i] + z
+        0         sigd1 = logistic(coeff)
+        0         g[1] -= W[i] * tΓ[i] - n * sigd1 * tΓ[i]
+        0         g[2] -= W[i] - n * sigd1
+        -     end
         - end
         - 
         - function log_likelihood_hess!(h::Array{Float64}, x::Array{Float64}, tΓ::Array{Int64}, n::Int64)
-        -     β, z = x[1], x[2]
-        -     coeff = β .* tΓ .+ z
-        -     sigd2 = logistic.(coeff) .* (1 .- logistic.(coeff))
-        -     h[1, 1] = -sum(-n .* (sigd2 .* tΓ.^2))
-        -     h[1, 2] = -sum(-n .* tΓ .* sigd2)
-        -     h[2, 1] = h[1, 2]
-        -     h[2, 2] = -sum(-n .* sigd2)
-        - end
-        - 
-        - function log_likelihood_fgh!(f::Union{Float64, Nothing}, g::Union{Array{Float64}, Nothing}, h::Union{Array{Float64}, Nothing}, x::Array{Float64}, tΓ::Array{Int64}, W::Array{Float64}, n::Int64)
         0     β, z = x[1], x[2]
-286988576     coeff = β .* tΓ .+ z
-        0     if !isnothing(g)
-205754688         sigd1 = logistic.(coeff)
-205754688         g[1] = -sum(W .* tΓ .- n .* sigd1 .* tΓ)
-205754688         g[2] = -sum(W .- n .* sigd1)
+        0     h[1, 1] = 0.0
+        0     h[1, 2] = 0.0
+        0     h[2, 1] = 0.0
+        0     h[2, 2] = 0.0
+        0     for i = 1:length(tΓ)
+        0         coeff = β * tΓ[i] + z
+        0         sigd2 = logistic(coeff) * (1 - logistic(coeff))
+        0         h[1, 1] -= -n * (sigd2 * tΓ[i]^2)
+        0         h[1, 2] -= -n * tΓ[i] * sigd2
+        0         h[2, 1] -= -n * tΓ[i] * sigd2
+        0         h[2, 2] -= -n * sigd2
         -     end
-        0     if !isnothing(h)
- 81233888         sigd2 = logistic.(coeff) .* (1 .- logistic.(coeff))
- 81233888         h[1, 1] = -sum(-n .* (sigd2 .* tΓ.^2))
- 81233888         h[1, 2] = -sum(-n .* tΓ .* sigd2)
-        0         h[2, 1] = h[1, 2]
- 81233888         h[2, 2] = -sum(-n .* sigd2)
-        -     end
-        -     if !isnothing(f)
-286988576         return -sum(W .* coeff .- n .* log1pexp.(coeff))
-        -     end
-        -     nothing
-        -   end
+        - end
         - 
         - function solve_logistic_Γ_subproblem_optim(Γ::Int64, t::Array{Int64}, W::Array{Float64}, n::Int64, x0 = [0.01, logit(0.01)], ux = [1.0, logit(0.5)])
   3891328     tΓ = max.(0, t .- Γ)
-        -     # fun = (x) -> log_likelihood(x, tΓ, W, n)
-        -     # fun_grad! = (g, x) -> log_likelihood_grad!(g, x, tΓ, W, n)
-        -     # fun_hess! = (h, x) -> log_likelihood_hess!(h, x, tΓ, n)
-        0     fun_fgh! = (f, g, h, x) -> log_likelihood_fgh!(f, g, h, x, tΓ, W, n)
+        0     fun = (x) -> log_likelihood(x, tΓ, W, n)
+        0     fun_grad! = (g, x) -> log_likelihood_grad!(g, x, tΓ, W, n)
+        0     fun_hess! = (h, x) -> log_likelihood_hess!(h, x, tΓ, n)
         -     
-        -     # df = TwiceDifferentiable(fun, fun_grad!, fun_hess!, x0)
-        0     df = TwiceDifferentiable(Optim.only_fgh!(fun_fgh!), x0)
+   542976     df = TwiceDifferentiable(fun, fun_grad!, fun_hess!, x0)
   1990912     dfc = TwiceDifferentiableConstraints([0.0, -Inf], ux)
         0     res = optimize(df, dfc, x0, IPNewton())
     90496     obj = -Optim.minimum(res)
