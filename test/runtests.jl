@@ -13,10 +13,11 @@ include("test_data.jl")
     n_checks = 1000
     G = zeros(2)
     H = zeros(2, 2)
+    tp, Wp = 301, 20
 
-    fun = (x) -> AdaptiveSurveillance.log_likelihood(x, Γ_true, t, W, n)
-    fun_grad! = (g, x) -> AdaptiveSurveillance.log_likelihood_grad!(g, x, Γ_true, t, W, n)
-    fun_hess! = (h, x) -> AdaptiveSurveillance.log_likelihood_hess!(h, x, Γ_true, t, n)
+    fun = (x) -> AdaptiveSurveillance.log_likelihood(x, Γ_true, tp, Wp, t, W, n)
+    fun_grad! = (g, x) -> AdaptiveSurveillance.log_likelihood_grad!(g, x, Γ_true, tp, Wp, t, W, n)
+    fun_hess! = (h, x) -> AdaptiveSurveillance.log_likelihood_hess!(h, x, Γ_true, tp, t, n)
 
     for i = 1:n_checks
         x = rand(2) .* [1, 10] .+ [0, -5]
@@ -33,6 +34,7 @@ end
 
 @testset "Verify Solver" begin
 rng = MersenneTwister(1234)
+tp, Wp = 301, 20
 for i = 1:length(t)
     for Γ = 0:(i-1)
         if rand(rng) >= 0.01 || (sum(max.(0, t[1:i] .- Γ)) == 0)
@@ -40,8 +42,8 @@ for i = 1:length(t)
             # beta value non-identifiable when sum(max.(0, t[1:i] .- Γ)) == 0
             continue
         end
-        objo, βo, zo = AdaptiveSurveillance.solve_logistic_Γ_subproblem_optim(Γ, t[1:i], W[1:i], n)
-        objc, βc, zc = AdaptiveSurveillance.solve_logistic_Γ_subproblem_convex(Γ, t[1:i], W[1:i], n)
+        objo, βo, zo = AdaptiveSurveillance.solve_logistic_Γ_subproblem_optim(Γ, tp, Wp, t[1:i], W[1:i], n)
+        objc, βc, zc = AdaptiveSurveillance.solve_logistic_Γ_subproblem_convex(Γ, vcat(t[1:i], tp), vcat(W[1:i], Wp), n)
         @test isapprox(objo, objc, rtol=0.15)
         @test isapprox(βo, βc, atol=1e-2)
         @test isapprox(zo, zc, atol=1e-2)

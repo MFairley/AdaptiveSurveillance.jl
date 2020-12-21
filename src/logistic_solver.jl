@@ -1,72 +1,88 @@
-using Optim, NLSolversBase, Random, Distributions
+using Random, Distributions
 using StatsBase, StatsFuns
+using Optim, NLSolversBase
 import Convex, Mosek, MosekTools
 using Plots
 
-# Defining constants like this seems to work but could cause thread problems.
-# const x0 = [0.01, logit(0.01)]
-# const lx = [0.0, -Inf]
-# const ux = [1.0, logit(0.5)]
-# const dfc = TwiceDifferentiableConstraints(lx, ux)
-
 ### Optim
-function normalized_log_likelihood(β::Float64, z::Float64, Γ::Int64, t::Array{Int64}, W::Array{Float64}, n::Int64)
+function f_coeff(β, z, Γ::Int64, t::Int64)
+    tΓ = max(0, t - Γ)
+    return tΓ, β * tΓ  + z
+end
+
+function normalized_log_likelihood_scalar(β::Float64, z::Float64, Γ::Int64, t::Int64, W::Int64, n::Int64)
+    _, coeff = f_coeff(β, z, Γ, t[i])
+    p = logistic(coeff)
+    return logpdf(Binomial(n, p), W[i])
+end
+
+function normalized_log_likelihood(β::Float64, z::Float64, Γ::Int64, tp::Int64, Wp::Int64, t::Array{Int64}, W::Array{Int64}, n::Int64)
     f = 0.0
     for i = 1:length(W)
-        tΓ = max(0, t[i] - Γ)
-        coeff = β * tΓ  + z
-        p = logistic(coeff)
-        f += logpdf(Binomial(n, p), W[i])
+        f += normalized_log_likelihood_scalar(β, z, Γ, t[i], W[i], n)
     end
+    f += normalized_log_likelihood_scalar(β, z, Γ, tp, Wp, n)
     return f
 end
 
-function log_likelihood(x, Γ::Int64, t::Array{Int64}, W::Array{Float64}, n::Int64)
+function log_likelihood_scalar(β, z, Γ::Int64, t::Int64, W::Int64, n::Int64)
+    _, coeff = f_coeff(β, z, Γ, t)
+    return W * coeff - n * log1pexp(coeff)
+end
+
+function log_likelihood(x, Γ::Int64, tp::Int64, Wp::Int64, t::Array{Int64}, W::Array{Int64}, n::Int64)
     β, z = x[1], x[2]
     f = 0.0
     for i = 1:length(W)
-        tΓ = max(0, t[i] - Γ)
-        coeff = β * tΓ  + z
-        f -= W[i] * coeff - n * log1pexp(coeff)
+        f -= log_likelihood_scalar(β, z, Γ, t[i], W[i], n)
     end
+    f -= log_likelihood_scalar(β, z, Γ, tp, Wp, n)
     return f
 end
 
-function log_likelihood_grad!(g::Array{Float64}, x::Array{Float64}, Γ::Int64, t::Array{Int64}, W::Array{Float64}, n::Int64)
+function log_likelihood_grad_scalar!(g::Array{Float64}, β::Float64, z::Float64, Γ::Int64, t::Int64, W::Int64, n::Int64)
+    tΓ, coeff = f_coeff(β, z, Γ, t)
+    sigd1 = logistic(coeff)
+    g[1] -= W * tΓ - n * sigd1 * tΓ
+    g[2] -= W - n * sigd1
+end
+
+function log_likelihood_grad!(g::Array{Float64}, x::Array{Float64}, Γ::Int64, tp::Int64, Wp::Int64, t::Array{Int64}, W::Array{Int64}, n::Int64)
     β, z = x[1], x[2]
     g[1] = 0.0
     g[2] = 0.0
     for i = 1:length(W)
-        tΓ = max(0, t[i] - Γ)
-        coeff = β * tΓ  + z
-        sigd1 = logistic(coeff)
-        g[1] -= W[i] * tΓ - n * sigd1 * tΓ
-        g[2] -= W[i] - n * sigd1
+        log_likelihood_grad_scalar!(g, β, z, Γ, t[i], W[i], n)
     end
+    log_likelihood_grad_scalar!(g, β, z, Γ, tp, Wp, n)
 end
 
-function log_likelihood_hess!(h::Array{Float64}, x::Array{Float64}, Γ::Int64, t::Array{Int64}, n::Int64)
+function log_likelihood_hess_scalar!(h::Array{Float64}, β::Float64, z::Float64, Γ::Int64, t::Int64, n::Int64)
+    tΓ, coeff = f_coeff(β, z, Γ, t)
+    sigd2 = logistic(coeff) * (1 - logistic(coeff))
+    h[1, 1] -= -n * (sigd2 * tΓ^2)
+    h[1, 2] -= -n * tΓ * sigd2
+    h[2, 1] -= -n * tΓ * sigd2
+    h[2, 2] -= -n * sigd2
+end
+
+function log_likelihood_hess!(h::Array{Float64}, x::Array{Float64}, Γ::Int64, tp::Int64, t::Array{Int64}, n::Int64)
     β, z = x[1], x[2]
     h[1, 1] = 0.0
     h[1, 2] = 0.0
     h[2, 1] = 0.0
     h[2, 2] = 0.0
     for i = 1:length(t)
-        tΓ = max(0, t[i] - Γ)
-        coeff = β * tΓ  + z
-        sigd2 = logistic(coeff) * (1 - logistic(coeff))
-        h[1, 1] -= -n * (sigd2 * tΓ^2)
-        h[1, 2] -= -n * tΓ * sigd2
-        h[2, 1] -= -n * tΓ * sigd2
-        h[2, 2] -= -n * sigd2
+        log_likelihood_hess_scalar!(h, β, z, Γ, t[i], n)
     end
+    log_likelihood_hess_scalar!(h, β, z, Γ, tp, n)
 end
 
-function solve_logistic_Γ_subproblem_optim(Γ::Int64, t::Array{Int64}, W::Array{Float64}, n::Int64,
+function solve_logistic_Γ_subproblem_optim(Γ::Int64, tp::Int64, Wp::Int64, t::Array{Int64}, W::Array{Int64}, n::Int64,
     x0 = [0.01, logit(0.01)], lx = [0.0, -Inf], ux = [1.0, logit(0.5)])
-    fun = (x) -> log_likelihood(x, Γ, t, W, n)
-    fun_grad! = (g, x) -> log_likelihood_grad!(g, x,  Γ, t, W, n)
-    fun_hess! = (h, x) -> log_likelihood_hess!(h, x, Γ, t, n)
+    fun = (x) -> log_likelihood(x, Γ, tp, Wp, t, W, n)
+    fun_grad! = (g, x) -> log_likelihood_grad!(g, x, Γ, tp, Wp, t, W, n)
+    fun_hess! = (h, x) -> log_likelihood_hess!(h, x, Γ, tp, t, n)
     
     df = TwiceDifferentiable(fun, fun_grad!, fun_hess!, x0)
     dfc = TwiceDifferentiableConstraints(lx, ux)
@@ -78,11 +94,11 @@ function solve_logistic_Γ_subproblem_optim(Γ::Int64, t::Array{Int64}, W::Array
     return obj, β, z
 end
 
-function solve_logistic_optim(t::Array{Int64}, W::Array{Float64}, n::Int64)
+function solve_logistic_optim(tp::Int64, Wp::Int64, t::Array{Int64}, W::Array{Int64}, n::Int64)
     max_obj, βs, zs, Γs = -Inf, 0.0, 0.0, 0
     for Γ = 0:maximum(t) #  # to do, fix type instability here  # Threads.@threads 
-        obj, β, z = solve_logistic_Γ_subproblem_optim(Γ, t, W, n)
-        # obj, β, z = solve_logistic_Γ_subproblem_convex(Γ, t, W, n)
+        obj, β, z = solve_logistic_Γ_subproblem_optim(Γ, tp, Wp, t, W, n)
+        # obj, β, z = solve_logistic_Γ_subproblem_convex(Γ, vcat(t, tp), vcat(W, Wp), n)
         if obj >= max_obj
             max_obj = obj
             βs, zs, Γs = β, z, Γ
@@ -91,16 +107,16 @@ function solve_logistic_optim(t::Array{Int64}, W::Array{Float64}, n::Int64)
     return max_obj, βs, zs, Γs
 end
 
-function profile_log_likelihood(n1::Int64, n2::Int64, tp::Int64, t::Array{Int64}, W::Array{Float64}, n::Int64)
+function profile_log_likelihood(n1::Int64, n2::Int64, tp::Int64, t::Array{Int64}, W::Array{Int64}, n::Int64)
     @assert n1 <= n2
     @assert tp > maximum(t)
-    W = vcat(W, n1)
-    t = vcat(t, tp)
+    # W = vcat(W, n1)
+    # t = vcat(t, tp)
     lp = zeros(n2 - n1 + 1)
-    for (j, i) in enumerate(n1:n2)
-        W[end] = i # this makes this not parallel
-        _, β, z, Γ = solve_logistic_optim(t, W, n)
-        lp[j] = normalized_log_likelihood(β, z, Γ, t, W, n)
+    for (i, Wp) in enumerate(n1:n2)
+        # W[end] = i # this makes this not parallel
+        _, β, z, Γ = solve_logistic_optim(tp, Wp, t, W, n)
+        lp[i] = normalized_log_likelihood(β, z, Γ, tp, Wp, t, W, n)
     end
     return lp
 end
@@ -121,7 +137,7 @@ function plot_profile_likelihood(tp, t, W, n; path = "")
     return pl
 end
 
-### Convex.jl
+# ### Convex.jl
 function solve_logistic_Γ_subproblem_convex(Γ, t, W, n, ux = [1.0, logit(0.5)])
     tΓ = max.(0, t .- Γ)
     β = Convex.Variable(Convex.Positive())
