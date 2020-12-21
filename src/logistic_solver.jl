@@ -2,7 +2,7 @@ using Optim, NLSolversBase, Random, Distributions
 using StatsBase
 import Convex, Mosek, MosekTools
 using Plots
-using LinearAlgebra
+# using LinearAlgebra
 
 ### Optim
 function normalized_log_likelihood(β::Float64, z::Float64, Γ::Int64, t::Array{Int64}, W::Array{Float64}, n::Int64)
@@ -11,13 +11,20 @@ function normalized_log_likelihood(β::Float64, z::Float64, Γ::Int64, t::Array{
     return sum(logpdf(Binomial(n, p[i]), W[i]) for i = 1:length(W))
 end
 
-function log_likelihood(x, tΓ::Array{Int64}, W::Array{Float64}, n::Int64)
+function log_likelihood_s(x, tΓ, W, n)
     β, z = x[1], x[2]
-    f = 0.0
-    for i = 1:length(W)
-        coeff = β * tΓ[i] + z
-        f += W[i] * coeff - n * log1pexp(coeff)
-    end
+    coeff = β * tΓ + z
+    W * coeff - n * log1pexp(coeff)
+end
+
+function log_likelihood(x, tΓ::Array{Int64}, W::Array{Float64}, n::Int64)
+    # β, z = x[1], x[2]
+    # f = 0.0
+    f = mapreduce(*, +, tΓ, W)
+    # for i = 1:length(W)
+        # coeff = β * tΓ[i] + z
+        # f += W[i] * coeff - n * log1pexp(coeff)
+    # end
     # coeff = β .* tΓ .+ z
     # -sum(W[i] * (β * tΓ[i] + z) - n * log1pexp(β * tΓ[i] + z) for i = 1:length(W))
     # coeff = tΓ * x
