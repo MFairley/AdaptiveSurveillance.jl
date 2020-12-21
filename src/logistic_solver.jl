@@ -11,75 +11,51 @@ function normalized_log_likelihood(β::Float64, z::Float64, Γ::Int64, t::Array{
     return sum(logpdf(Binomial(n, p[i]), W[i]) for i = 1:length(W))
 end
 
-function log_likelihood_s(x, tΓ, W, n)
-    β, z = x[1], x[2]
-    coeff = β * tΓ + z
-    W * coeff - n * log1pexp(coeff)
-end
-
 function log_likelihood(x, tΓ::Array{Int64}, W::Array{Float64}, n::Int64)
-    # β, z = x[1], x[2]
-    # f = 0.0
-    f = mapreduce(*, +, tΓ, W)
-    # for i = 1:length(W)
-        # coeff = β * tΓ[i] + z
-        # f += W[i] * coeff - n * log1pexp(coeff)
-    # end
-    # coeff = β .* tΓ .+ z
-    # -sum(W[i] * (β * tΓ[i] + z) - n * log1pexp(β * tΓ[i] + z) for i = 1:length(W))
-    # coeff = tΓ * x
-    # f = dot(W, coeff) - n * mapreduce(log1pexp, +, coeff)
+    β, z = x[1], x[2]
+    f = 0.0
+    for i = 1:length(W)
+        coeff = β * tΓ[i] + z
+        f -= W[i] * coeff - n * log1pexp(coeff)
+    end
     return f
 end
 
 function log_likelihood_grad!(g::Array{Float64}, x::Array{Float64}, tΓ::Array{Int64}, W::Array{Float64}, n::Int64)
     β, z = x[1], x[2]
-    coeff = β .* tΓ .+ z
-    sigd1 = logistic.(coeff)
-    g[1] = -sum(W .* tΓ .- n .* sigd1 .* tΓ)
-    g[2] = -sum(W .- n .* sigd1)
+    g[1] = 0.0
+    g[2] = 0.0
+    for i = 1:length(W)
+        coeff = β * tΓ[i] + z
+        sigd1 = logistic(coeff)
+        g[1] -= W[i] * tΓ[i] - n * sigd1 * tΓ[i]
+        g[2] -= W[i] - n * sigd1
+    end
 end
 
 function log_likelihood_hess!(h::Array{Float64}, x::Array{Float64}, tΓ::Array{Int64}, n::Int64)
     β, z = x[1], x[2]
-    coeff = β .* tΓ .+ z
-    sigd2 = logistic.(coeff) .* (1 .- logistic.(coeff))
-    h[1, 1] = -sum(-n .* (sigd2 .* tΓ.^2))
-    h[1, 2] = -sum(-n .* tΓ .* sigd2)
-    h[2, 1] = h[1, 2]
-    h[2, 2] = -sum(-n .* sigd2)
+    h[1, 1] = 0.0
+    h[1, 2] = 0.0
+    h[2, 1] = 0.0
+    h[2, 2] = 0.0
+    for i = 1:length(tΓ)
+        coeff = β * tΓ[i] + z
+        sigd2 = logistic(coeff) * (1 - logistic(coeff))
+        h[1, 1] -= -n * (sigd2 * tΓ[i]^2)
+        h[1, 2] -= -n * tΓ[i] * sigd2
+        h[2, 1] -= -n * tΓ[i] * sigd2
+        h[2, 2] -= -n * sigd2
+    end
 end
-
-function log_likelihood_fgh!(f::Union{Float64, Nothing}, g::Union{Array{Float64}, Nothing}, h::Union{Array{Float64}, Nothing}, x::Array{Float64}, tΓ::Array{Int64}, W::Array{Float64}, n::Int64)
-    β, z = x[1], x[2]
-    coeff = β .* tΓ .+ z
-    if !isnothing(g)
-        sigd1 = logistic.(coeff)
-        g[1] = -sum(W .* tΓ .- n .* sigd1 .* tΓ)
-        g[2] = -sum(W .- n .* sigd1)
-    end
-    if !isnothing(h)
-        sigd2 = logistic.(coeff) .* (1 .- logistic.(coeff))
-        h[1, 1] = -sum(-n .* (sigd2 .* tΓ.^2))
-        h[1, 2] = -sum(-n .* tΓ .* sigd2)
-        h[2, 1] = h[1, 2]
-        h[2, 2] = -sum(-n .* sigd2)
-    end
-    if !isnothing(f)
-        return -sum(W .* coeff .- n .* log1pexp.(coeff))
-    end
-    nothing
-  end
 
 function solve_logistic_Γ_subproblem_optim(Γ::Int64, t::Array{Int64}, W::Array{Float64}, n::Int64, x0 = [0.01, logit(0.01)], ux = [1.0, logit(0.5)])
     tΓ = max.(0, t .- Γ)
     fun = (x) -> log_likelihood(x, tΓ, W, n)
     fun_grad! = (g, x) -> log_likelihood_grad!(g, x, tΓ, W, n)
     fun_hess! = (h, x) -> log_likelihood_hess!(h, x, tΓ, n)
-    # fun_fgh! = (f, g, h, x) -> log_likelihood_fgh!(f, g, h, x, tΓ, W, n)
     
     df = TwiceDifferentiable(fun, fun_grad!, fun_hess!, x0)
-    # df = TwiceDifferentiable(Optim.only_fgh!(fun_fgh!), x0)
     dfc = TwiceDifferentiableConstraints([0.0, -Inf], ux)
     res = optimize(df, dfc, x0, IPNewton())
     obj = -Optim.minimum(res)
