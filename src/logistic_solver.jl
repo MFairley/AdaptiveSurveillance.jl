@@ -88,15 +88,18 @@ function solve_logistic_Γ_subproblem_optim(Γ::Int64, tp::Int64, Wp::Int64, t::
     dfc = TwiceDifferentiableConstraints(lx, ux)
     
     res = optimize(df, dfc, x0, IPNewton())
-    obj = -Optim.minimum(res)
-    β, z = Optim.minimizer(res)
+    obj::Float64 = -Optim.minimum(res)
+    β::Float64, z::Float64 = Optim.minimizer(res)
 
     return obj, β, z
 end
 
 function solve_logistic_optim(tp::Int64, Wp::Int64, t::Array{Int64}, W::Array{Int64}, n::Int64)
-    max_obj, βs, zs, Γs = -Inf, 0.0, 0.0, 0
-    Threads.@threads for Γ = 0:maximum(t) #  # to do, fix type instability here  # Threads.@threads 
+    max_obj = -Inf64
+    βs = 0.0
+    zs = 0.0
+    Γs = 0
+    for Γ = 0:maximum(t) #  # to do, fix type instability here with Threads.@threads
         obj, β, z = solve_logistic_Γ_subproblem_optim(Γ, tp, Wp, t, W, n)
         # obj, β, z = solve_logistic_Γ_subproblem_convex(Γ, vcat(t, tp), vcat(W, Wp), n)
         if obj >= max_obj
