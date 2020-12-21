@@ -2,6 +2,7 @@ using Optim, NLSolversBase, Random, Distributions
 using StatsBase
 import Convex, Mosek, MosekTools
 using Plots
+using LinearAlgebra
 
 ### Optim
 function normalized_log_likelihood(β::Float64, z::Float64, Γ::Int64, t::Array{Int64}, W::Array{Float64}, n::Int64)
@@ -12,8 +13,16 @@ end
 
 function log_likelihood(x, tΓ::Array{Int64}, W::Array{Float64}, n::Int64)
     β, z = x[1], x[2]
-    coeff = β .* tΓ .+ z
-    return -sum(W .* coeff .- n .* log1pexp.(coeff))
+    f = 0.0
+    for i = 1:length(W)
+        coeff = β * tΓ[i] + z
+        f += W[i] * coeff - n * log1pexp(coeff)
+    end
+    # coeff = β .* tΓ .+ z
+    # -sum(W[i] * (β * tΓ[i] + z) - n * log1pexp(β * tΓ[i] + z) for i = 1:length(W))
+    # coeff = tΓ * x
+    # f = dot(W, coeff) - n * mapreduce(log1pexp, +, coeff)
+    return f
 end
 
 function log_likelihood_grad!(g::Array{Float64}, x::Array{Float64}, tΓ::Array{Int64}, W::Array{Float64}, n::Int64)
@@ -57,13 +66,13 @@ function log_likelihood_fgh!(f::Union{Float64, Nothing}, g::Union{Array{Float64}
 
 function solve_logistic_Γ_subproblem_optim(Γ::Int64, t::Array{Int64}, W::Array{Float64}, n::Int64, x0 = [0.01, logit(0.01)], ux = [1.0, logit(0.5)])
     tΓ = max.(0, t .- Γ)
-    # fun = (x) -> log_likelihood(x, tΓ, W, n)
-    # fun_grad! = (g, x) -> log_likelihood_grad!(g, x, tΓ, W, n)
-    # fun_hess! = (h, x) -> log_likelihood_hess!(h, x, tΓ, n)
-    fun_fgh! = (f, g, h, x) -> log_likelihood_fgh!(f, g, h, x, tΓ, W, n)
+    fun = (x) -> log_likelihood(x, tΓ, W, n)
+    fun_grad! = (g, x) -> log_likelihood_grad!(g, x, tΓ, W, n)
+    fun_hess! = (h, x) -> log_likelihood_hess!(h, x, tΓ, n)
+    # fun_fgh! = (f, g, h, x) -> log_likelihood_fgh!(f, g, h, x, tΓ, W, n)
     
-    # df = TwiceDifferentiable(fun, fun_grad!, fun_hess!, x0)
-    df = TwiceDifferentiable(Optim.only_fgh!(fun_fgh!), x0)
+    df = TwiceDifferentiable(fun, fun_grad!, fun_hess!, x0)
+    # df = TwiceDifferentiable(Optim.only_fgh!(fun_fgh!), x0)
     dfc = TwiceDifferentiableConstraints([0.0, -Inf], ux)
     res = optimize(df, dfc, x0, IPNewton())
     obj = -Optim.minimum(res)
@@ -73,9 +82,8 @@ function solve_logistic_Γ_subproblem_optim(Γ::Int64, t::Array{Int64}, W::Array
 end
 
 function solve_logistic_optim(t::Array{Int64}, W::Array{Float64}, n::Int64)
-    max_obj = -Inf
-    βs, zs, Γs = 0.0, 0.0, 0
-    for Γ = 0:maximum(t) #Threads.@threads
+    max_obj, βs, zs, Γs = -Inf, 0.0, 0.0, 0
+    for Γ = 0:maximum(t) # Threads.@threads # to do, fix type instability here 
         obj, β, z = solve_logistic_Γ_subproblem_optim(Γ, t, W, n)
         # obj, β, z = solve_logistic_Γ_subproblem_convex(Γ, t, W, n)
         if obj >= max_obj
@@ -86,7 +94,7 @@ function solve_logistic_optim(t::Array{Int64}, W::Array{Float64}, n::Int64)
     return max_obj, βs, zs, Γs
 end
 
-function profile_log_likelihood(n1::Int64, n2::Int64, tp::Int64, t::Int64, W::Array{Float64}, n::Int64)
+function profile_log_likelihood(n1::Int64, n2::Int64, tp::Int64, t::Array{Int64}, W::Array{Float64}, n::Int64)
     @assert n1 <= n2
     @assert tp > maximum(t)
     W = vcat(W, n1)
