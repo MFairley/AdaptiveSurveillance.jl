@@ -3,7 +3,7 @@
 const L = 2
 const β_true = 0.015008
 const p0_true = 0.01
-const p_sequence = repeat(prevalance_sequence(p0_true, β_true), 1, L) # fix this
+# const p_sequence = repeat(prevalance_sequence(p0_true, β_true), 1, L) # fix this
 const n = 200
 const α = 10000 # the higher, the less false positives
 

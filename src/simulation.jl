@@ -6,115 +6,89 @@ using Base.Threads
 using Isotonic
 using StatsFuns
 
-function replication(L, Γ::Array{Int64}, p0, p, n, astat::Function, α, tpolicy::Function, tstate; maxiters=1000, warn=true,
-    rng1 = MersenneTwister(1), rng2 = MersenneTwister(2))
-    @assert L == length(Γ)
-    @assert L == length(p0)
-    @assert L == size(p, 2)
-    tstate = deepcopy(tstate) # this ensures that modifications to state do not affect other runs
-    false_alarm = -1
-    test_data = ones(Int64, maxiters, L) * -1
-    locations_visited = zeros(Int64, maxiters)
-    ntimes_visited = zeros(Int64, maxiters, L)
-    last_time_visited = ones(Int64, L) * -1
-    z = ones(maxiters, L) * -1.0 # alarm statistic
-    w = ones(maxiters, L, 2) * -1.0 # posterior log probability of states
-    prevalance_history = zeros(maxiters, L) # record of prevalance over time
-    for t = 1:maxiters
-        l = tpolicy(L, n, astat, α, tstate, rng1, test_data, locations_visited, ntimes_visited, last_time_visited, z, w, t)
-        locations_visited[t] = l
-        last_time_visited[l] = t
-        for j = 1:L
-            ntimes_visited[t, j] += ntimes_visited[max(1, t - 1), j] + (j == l)
-        end
-        test_data[t, l] = sample_test_data(Γ[l], p0[l], @view(p[:, l]), n, rng2, t, l)
-        update_prevalance_history!(L, Γ, p0, p, prevalance_history, t) # can comment out if want to save memory
+struct StateObservable
+    L::Int64 # number of locations
+    n::Int64 # number of tests in each time step
+    maxiters::Int64 # the maximum number of iters we can do
+    x::Array{Int64} # location visited at each time step (our decision)
+    W::Array{Int64} # number of positive tests observed
+end
 
-        la = apolicy!(L, n, astat, α, test_data, locations_visited, ntimes_visited, z, w, t)
-        if la > 0
-            if t >= Γ[la]
-                false_alarm = 0
-            end
-            return t, la, false_alarm, max.(0, t .- Γ), test_data, locations_visited, ntimes_visited, 
-                last_time_visited, z, w, prevalance_history
-        end
+struct StateUnobservable
+    Γ::Array{Int64}
+    p::Function # returns prevalance at a given time
+end
+
+function create_system_states(L, n, maxiters, Γ, p)
+    obs = StateObservable(L, n, maxiters, zeros(Int64, maxiters) * -1, zeros(Int64, maxiters) * -1)
+    unobs = StateUnobservable(Γ, p)
+    return obs, unobs
+end
+
+# input states should be fresh
+function replication(obs::StateObservable, unobs::StateUnobservable, seed_system::Int64,
+    astate, afunc::Function, seed_alarm::Int64,
+    tstate, tfunc::Function, seed_test::Int64;
+    warn::Bool=true,
+    copy::Bool=true)
+
+    # this prevents the replication from modifying arrays in the states
+    if copy
+        obs = deepcopy(obs)
+        unobs = deepcopy(unobs)
+        astate = deepcopy(astate)
+        tstate = deepcopy(tstate)
+    end
+    
+    rng_system = MersenneTwister(seed_system)
+    rng_test = MersenneTwister(seed_test)
+
+    for t = 1:obs.maxiters
+        # Sample from a location and observe positive count
+        obs.x[t] = tfunc(t, obs, astate, afunc, tstate, rng_test)
+        obs.W[t] = sample_test_data(t, obs.x[t], obs, unobs, rng_system)
+
+        # Check for an alarm in that location (assume alarm static for unchanged locations)
+        !afunc(t, obs, astate) || return t, obs.x[t], t < unobs.Γ[obs.x[t]], max(0, t - unobs.Γ[obs.x[t]])
     end
     if warn
         @warn "The maximum number of time steps, $maxiters, reached."
     end
-    if all(maxiters + 1 .>= Γ)
-        false_alarm = 0
-    end
-    return maxiters + 1, -1, false_alarm, max.(0, (maxiters + 1) .- Γ), test_data, locations_visited, ntimes_visited, 
-        last_time_visited, z, w, prevalance_history
+    return maxiters + 1, 0, -1, -1 # unknown since there was no alarm
 end
 
-function sample_test_data(Γ, p0, p, n, rng, t, l)
-    if t < Γ
-        return rand(rng, Binomial(n, p0))
-    elseif Γ <= t < Γ + length(p)
-        return rand(rng, Binomial(n, p[t - Γ + 1]))
-    end
-    return rand(rng, Binomial(n, p[end]))
+function sample_test_data(t, l, obs, unobs, rng_system)
+    p = unobs.p(t, unobs.Γ[l])
+    return rand(rng_system, Binomial(obs.n, p))
 end
-
-function update_prevalance_history!(L, Γ, p0, p, prevalance_history, t)
-    for l = 1:L
-        if t < Γ[l]
-            prevalance_history[t, l] = p0[l]
-        elseif Γ[l] <= t < Γ[l] + length(p[:, l])
-            prevalance_history[t, l] = p[t - Γ[l] + 1, l]
-        else
-            prevalance_history[t, l] = p[end, l]
-        end
-    end
-end
-
-function apolicy!(L, n, astat::Function, α, test_data, locations_visited, ntimes_visited, z, w, t)
-    la = 0
-    for l = 1:L
-        if ntimes_visited[t, l] > 2
-            if locations_visited[t] == l
-                z[t, l], w[t, l, :] = astat(n, @views(test_data[1:t, l][locations_visited[1:t] .== l]))
-                la = z[t, l] > log(α) ? l : 0
-            else
-                z[t, l], w[t, l, :] = z[t - 1, l], w[t - 1, l, :]
-            end
-        else
-            z[t, l] = 0.0
-            w[t, l, :] = [log(0.5), log(0.5)]
-        end
-    end
-    return la
-end
-
-
 
 ### PERFORMANCE METRICS
-function alarm_time_distribution(K, L, Γ, p0, p, n, apolicy::Function, α, tpolicy::Function, tstate; maxiters = 10*52, seed=12)
-    alarm_times = zeros(maxiters + 1)
-    rng1 = [MersenneTwister(seed + i) for i = 1:Threads.nthreads()]
-    rng2 = [MersenneTwister(seed + 1 + i) for i = 1:Threads.nthreads()]
+function alarm_time_distribution(K::Int64, obs::StateObservable, unobs::StateUnobservable,
+    astate, afunc::Function, 
+    tstate, tfunc::Function)
+    
+    alarm_times = zeros(obs.maxiters + 1) 
     Threads.@threads for k = 1:K
-        t, _ = replication(L, Γ, p0, p, n, apolicy::Function, α, tpolicy::Function, tstate, maxiters=maxiters, warn=false,
-            rng1 = rng1[Threads.threadid()], rng2 = rng2[Threads.threadid()])
+        t, _ = replication(obs, unobs, k+1, astate, afunc, k+2, tstate, tfunc, k+3, warn=false)
         alarm_times[t] += 1
     end
-    return alarm_times
+    return alarm_times # missing information about which location has the alarm
 end
 
-function probability_successfull_detection_l(K, T, d, l, L, p0, p, n, apolicy::Function, α, tpolicy::Function, tstate; conf_level=0.95)
+function probability_successfull_detection_l(K::Int64, l::Int64, d::Int64, obs::StateObservable, unobs::StateUnobservable,
+    astate, afunc::Function, 
+    tstate, tfunc::Function;
+    conf_level=0.95)
+
     z_score = quantile(Normal(0, 1), 1 - (1 - conf_level)/2)
-    post_detections = zeros(T)
-    successful_detections = zeros(T)
-    for t = 1:T
-        Γ = ones(Int64, L) * typemax(Int64)
-        Γ[l] = t
-        alarm_times = alarm_time_distribution(K, L, Γ, p0, p, n, apolicy, α, tpolicy, tstate; maxiters =  t + d + 1)
-        post_detections[t] = sum(alarm_times[t:end])
-        successful_detections[t] = sum(alarm_times[t:(t + d)])
-    end
-    psd = successful_detections ./ post_detections
-    hw = z_score .* sqrt.(psd .* (1 .- psd) ./ post_detections)
+    Γ = unobs.Γ[l]
+    @assert(Γ + d <= obs.maxiters)
+
+    alarm_times = alarm_time_distribution(K, obs, unobs, astate, afunc, tstate, tfunc)
+    post_detections = sum(alarm_times[Γ:end])
+    successful_detections = sum(alarm_times[Γ:(Γ + d)])
+    psd = successful_detections / post_detections
+    hw = z_score * sqrt(psd * (1 - psd) / post_detections)
+    
     return psd, hw
 end

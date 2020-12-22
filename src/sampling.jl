@@ -1,25 +1,28 @@
 ### SEARCH POLICIES
-struct tstate_const
+struct TStateConstant
     l::Int64
 end
 
-function tpolicy_constant(L, n, astat, α, tstate, rng, test_data, locations_visited, ntimes_visited, last_time_visited, z, w, t)
+function tfunc_constant(t, obs, astate, afunc, tstate, rng_test)
     return tstate.l
 end
 
-function tpolicy_random(L, n, astat, α, tstate, rng, test_data, locations_visited, ntimes_visited, last_time_visited, z, w, t)
-    return rand(rng, 1:L) # using rng breaks multi-threading here, to do: file github issue for this
+struct TStateRandom
 end
 
-struct tstate_thompson
+function tpolicy_random(t, obs, astate, afunc, tstate, rng_test)
+    return rand(rng_test, 1:obs.L)
+end
+
+struct TStateThompson
     beta_parameters::Array{Float64, 2}
 end
 
-function tpolicy_thompson(L, n, astat, α, tstate, rng, test_data, locations_visited, ntimes_visited, last_time_visited, z, w, t)
+function tpolicy_thompson(t, obs, astate, afunc, tstate, rng_test)
     if t > 1
-        l = locations_visited[t - 1] # last location visited
-        beta_parameters[l, 1] += test_data[t - 1, l]
-        beta_parameters[l, 2] += n - test_data[t - 1, l]
+        l = obs.x[t - 1] # last location visited
+        beta_parameters[l, 1] += obs.W[t - 1]
+        beta_parameters[l, 2] += n - obs.W[t - 1]
     end
     d = [Beta(tstate.beta_parameters[l, 1], tstate.beta_parameters[l, 2]) for l = 1:L]
     s = rand.(rng, d)
@@ -27,9 +30,7 @@ function tpolicy_thompson(L, n, astat, α, tstate, rng, test_data, locations_vis
     return argmax(s)
 end
 
-struct tstate_evsi
-    # β_max::Float64
-    # p0_max::Float64
+struct TStateEVSI
 end
 
 struct SearchV{T, V, F} <: AbstractVector{T}
@@ -41,37 +42,32 @@ Base.size(x::SearchV) = size(x.v)
 Base.axes(x::SearchV) = axes(x.v)
 Base.@propagate_inbounds Base.getindex(x::SearchV, I...) = x.f(x.v[I...])
 
-function check_astat(i, n, astat, α, test_data, locations_visited, l, t)
-    test_data[t, l] = i
-    locations_visited[t] = l
-    z_candidate, _ = astat(n, @views(test_data[1:t, l][locations_visited[1:t] .== l])) # this is the main bottleneck
-    test_data[t, l] = -1
-    locations_visited[t] = 0
-    return z_candidate > log(α)
+function check_astat(i, t, l, obs, astate, afunc)
+    obs.x[t] = l
+    obs.W[t] = i
+    alarm = afunc(t, obs, astate)
+    obs.x[t] = -1
+    obs.W[t] = -1
+    return return alarm
 end
 
-function tpolicy_evsi(L, n, astat, α, tstate, rng, test_data, locations_visited, ntimes_visited, last_time_visited, z, w, t)
-    probability_alarm = zeros(L) # estimated log probability that the location will cause an alarm if tested next
+function tpolicy_evsi(t, obs, astate, afunc, tstate, rng_test)
+    probability_alarm = zeros(L)
     if t > 2 * L # warmup
         for l = 1:L
-            f(i) = check_astat(i, n, astat, α, test_data, locations_visited, l, t)
-            i = searchsortedfirst(SearchV{Int}(0:n, i -> f(i)), 1) - 1 # note this returns index so need to - 1 to get count
-            println("l = $l, i = $i")
+            f(i) = check_astat(i, t, l, obs, astate, afunc)
+            i = searchsortedfirst(SearchV{Int}(0:n, i -> f(i)), 1) - 1
             if i > n
-                probability_alarm[l] = -Inf
+                probability_alarm[l] = 0.0
                 break
             elseif i == 0
-                probability_alarm[l] = Inf
+                probability_alarm[l] = 1.0
                 break
             end
-            W = @views(test_data[1:t, l])[locations_visited[1:t] .== l]
-            println("l = $l, W = $W")
-            times = @views((1:t))[locations_visited[1:t] .== l]
-            println("l = $l, times = $times")
-            probability_alarm[l] = sum(profile_likelihood(t, times, W, n)[i+1:end])
-            println("l = $l, pfa = $(probability_alarm[l])")
+            past_times = (1:t-1)[obs.x .== l]
+            past_counts = obs.W[obs.x .== 1]
+            probability_alarm[l] = sum(profile_likelihood(t, past_times, past_counts, obs.n)[i+1:end])
         end
-        
         return argmax(probability_alarm) # be careful about getting stuck
     end
     return Int(ceil(t / 2))

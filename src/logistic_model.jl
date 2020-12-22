@@ -10,6 +10,11 @@ function f_coeff(β, z, Γ::Int64, t::Int64)
     return tΓ, β * tΓ  + z
 end
 
+function logistic_prevalance(β::Float64, z::Float64, Γ::Int64, tp::Int64)
+    _, coeff = f_coeff(β, z, Γ, tp)
+    return logistic(coeff)
+end
+
 function normalized_log_likelihood_scalar(β::Float64, z::Float64, Γ::Int64, t::Int64, W::Int64, n::Int64)
     _, coeff = f_coeff(β, z, Γ, t)
     p = logistic(coeff)
@@ -109,24 +114,20 @@ function solve_logistic_optim(tp::Int64, Wp::Int64, t::Vector{Int64}, W::Vector{
     return max_obj, βs, zs, Γs
 end
 
-function profile_log_likelihood(n1::Int64, n2::Int64, tp::Int64, t::Vector{Int64}, W::Vector{Int64}, n::Int64)
-    @assert n1 <= n2
+function profile_log_likelihood(tp::Int64, t::Vector{Int64}, W::Vector{Int64}, n::Int64)
     @assert tp > maximum(t)
-    @assert 0 <= n1 <= n
-    @assert 0 <= n2 <= n
     @assert all(0 .<= W .<= n)
     @assert all(t .>= 0)
-    lp = zeros(n2 - n1 + 1)
-    Wp_range = n1:n2
-    Threads.@threads for i = 1:length(Wp_range)
-        _, β, z, Γ = solve_logistic_optim(tp, Wp_range[i], t, W, n)
-        lp[i] = normalized_log_likelihood(β, z, Γ, tp, Wp_range[i], t, W, n)
+    lp = zeros(n + 1)
+    Threads.@threads for i = 0:n
+        _, β, z, Γ = solve_logistic_optim(tp, i, t, W, n)
+        lp[i+1] = normalized_log_likelihood(β, z, Γ, tp, i, t, W, n)
     end
     return lp
 end
 
 function profile_likelihood(tp, t, W, n)
-    return softmax(profile_log_likelihood(0, n, tp, t, W, n))
+    return softmax(profile_log_likelihood(tp, t, W, n))
 end
 
 function plot_profile_likelihood(tp, t, W, n; path = "")

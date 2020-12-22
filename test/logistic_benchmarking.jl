@@ -27,13 +27,11 @@ H = zeros(2, 2)
 # @code_warntype AdaptiveSurveillance.log_likelihood_hess!(H, x, Γr, tp, tr, n)
 # @code_warntype AdaptiveSurveillance.solve_logistic_Γ_subproblem_optim(Γr, tp, Wp, tr, Wr, n)
 # @code_warntype AdaptiveSurveillance.solve_logistic_optim(tp, Wp, tr, Wr, n) # fix issue with threads here
-# @code_warntype AdaptiveSurveillance.profile_log_likelihood(0, 100, tp, tr, Wr, n)
-# @code_warntype AdaptiveSurveillance.future_alarm_log_probability(0, 100, tp, tr, Wr, n)
 
 # Meomory allocation
-# AdaptiveSurveillance.future_alarm_log_probability(0, 100, tp, Wr, tr, n)
+# profile_likelihood(tp, tr, Wr, n)
 # Profile.clear_malloc_data()
-# AdaptiveSurveillance.future_alarm_log_probability(0, 100, tp, Wr, tr, n)
+#profile_likelihood(tp, tr, Wr, n)
 
 # Benchmarking
-# @benchmark AdaptiveSurveillance.future_alarm_log_probability(0, 100, $tp, $Wr, $tr, $n)
+# @benchmark profile_likelihood($tp, $tr, $Wr, $n)
