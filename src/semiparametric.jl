@@ -140,9 +140,10 @@ function tpolicy_thompson(L, n, astat, α, tstate, rng, test_data, locations_vis
 end
 
 struct tstate_evsi
-    Γd::Array{Geometric{Float64},1} # geometric distribution, cdf is for number of failures before success
-    beta_parameters::Array{Float64, 2}
-    recent_beta_parameters::Array{Float64, 2}
+    # Γd::Array{Geometric{Float64},1} # geometric distribution, cdf is for number of failures before success
+    # beta_parameters::Array{Float64, 2}
+    # recent_beta_parameters::Array{Float64, 2}
+    # a::Int64
 end
 
 struct SearchV{T, V, F} <: AbstractVector{T}
@@ -164,11 +165,6 @@ function check_astat(i, n, astat, α, test_data, locations_visited, l, t)
 end
 
 function tpolicy_evsi(L, n, astat, α, tstate, rng, test_data, locations_visited, ntimes_visited, last_time_visited, z, w, t)
-    if t > 1
-        l = locations_visited[t - 1] # last location visisted
-        beta_update(n, tstate.beta_parameters, test_data, l, t)
-        beta_update(n, tstate.recent_beta_parameters, test_data, l, t, accumulate = false)
-    end
     probability_alarm = zeros(L) # estimated log probability that the location will cause an alarm if tested next
     if t > 2 * L # warmup
         for l = 1:L
@@ -178,55 +174,16 @@ function tpolicy_evsi(L, n, astat, α, tstate, rng, test_data, locations_visited
                 probability_alarm[l] = -Inf
                 break
             end
-            tprime = last_time_visited[l] # last time we checked location
-
-            dD = BetaBinomial(n, tstate.beta_parameters[l, 1], tstate.beta_parameters[l, 2])
-            dC = BetaBinomial(n, tstate.recent_beta_parameters[l, 1], tstate.recent_beta_parameters[l, 2])
-
-            prior_change = logcdf(tstate.Γd[l], tprime - 1) # changed during data collection
-            prior_no_change = logccdf(tstate.Γd[l], t - 2) # has not changed yet
-            pDn = w[t - 1, l, 1] + prior_no_change
-
-            # if tprime < (t - 1) # has any intermediate time step passed?
-            #     prior_int_change = logdiffcdf(tstate.Γd[l], t - 2, tprime - 1)
-            #     pDd = logsumexp([w[t - 1, l, 2] + prior_change, w[t - 1, l, 1] + prior_int_change])
-            #     pD = pDn - logsumexp([pDn, pDd])
-                
-            #     dC_int = BetaBinomial(n, 1, 1)
-            #     t1 = 0.0
-            #     try
-            #         t1 = pD + logccdf(dD, i - 1) # this will sometimes fail
-            #     catch e
-            #         t1 = pD + logsumexp([logpdf(dD, j) for j = i:n])
-            #     end
-            #     t2 = log1mexp(pD) + logsumexp([prior_change + logccdf(dC, i - 1), prior_int_change + logccdf(dC_int, i - 1)])
-                
-            #     probability_alarm[l] = logsumexp([t1, t2])
-            #     # println("t = $t, tprime = $tprime, l = $l, prior_int_change = $(exp(prior_int_change))")
-            # else
-            #     pDd = w[t - 1, l, 2] + prior_change
-            #     pD = pDn - logsumexp([pDn, pDd])
-            #     t1 = 0.0
-            #     try
-            #         t1 = pD + logccdf(dD, i - 1) # this will sometimes fail
-            #     catch e
-            #         t1 = pD + logsumexp([logpdf(dD, j) for j = i:n])
-            #     end
-            #     t2 = log1mexp(pD) + logccdf(dC, i - 1)
-
-            #     probability_alarm[l] = logsumexp([t1, t2])
-            #     # println("t = $t, tprime = $tprime, l = $l, prior_int_change = 0.0")
-            # end
-            # println("t = $t, tprime = $tprime, l = $l, times_visited = $(ntimes_visited[t - 1, l])")
-            # println("t = $t, tprime = $tprime, l = $l, prior_change = $(exp(prior_change))")
-            # println("t = $t, tprime = $tprime, l = $l, prior_no_change = $(exp(prior_no_change))")
-            # println("t = $t, tprime = $tprime, l = $l, likely_no_change = $(exp.(w[t - 1, l, :]))")
-            # println("t = $t, tprime = $tprime, l = $l, posterior_p_no_change = $(exp(pD))")
-            # println("t = $t, tprime = $tprime, l = $l, dC = $(dC)")
-            # println("t = $t, tprime = $tprime, l = $l, probability_alarm = $(exp(probability_alarm[l]))")
-            # println("")
+            W = @views(test_data[1:t, l][locations_visited[1:t] .== l])
+            times = @views((1:t)[locations_visited[1:t] .== l])
+            if i > n ÷ 2
+                probability_alarm[l] =  future_alarm_log_probability(i, n, t, W, times, n)
+            else
+                probability_alarm[l] =  log1mexp(future_alarm_log_probability(i, n, t, W, times, n))
+                # log1mexp
+            end
         end
-        return argmax(probability_alarm) 
+        return argmax(probability_alarm) # be careful about getting stuck
     end
     return Int(ceil(t / 2))
 end

@@ -78,7 +78,7 @@ function log_likelihood_hess!(h::Array{Float64}, x::Array{Float64}, Γ::Int64, t
     log_likelihood_hess_scalar!(h, β, z, Γ, tp, n)
 end
 
-function solve_logistic_Γ_subproblem_optim(Γ::Int64, tp::Int64, Wp::Int64, t::Array{Int64}, W::Array{Int64}, n::Int64,
+function solve_logistic_Γ_subproblem_optim(Γ::Int64, tp::Int64, Wp::Int64, t::Array{Int64}, W::Array{Int64}, n::Int64;
     x0 = [0.01, logit(0.01)], lx = [0.0, -Inf], ux = [1.0, logit(0.5)])
     fun = (x) -> log_likelihood(x, Γ, tp, Wp, t, W, n)
     fun_grad! = (g, x) -> log_likelihood_grad!(g, x, Γ, tp, Wp, t, W, n)
@@ -118,7 +118,7 @@ function profile_log_likelihood(n1::Int64, n2::Int64, tp::Int64, t::Array{Int64}
     @assert all(t .>= 0)
     lp = zeros(n2 - n1 + 1)
     Wp_range = n1:n2
-    Threads.@threads for i = 1:length(Wp_range) # Threads.@threads 
+    Threads.@threads for i = 1:length(Wp_range)
         _, β, z, Γ = solve_logistic_optim(tp, Wp_range[i], t, W, n)
         lp[i] = normalized_log_likelihood(β, z, Γ, tp, Wp_range[i], t, W, n)
     end
