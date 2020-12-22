@@ -1,11 +1,10 @@
 module AdaptiveSurveillance
 
-include("si_model.jl")
-include("simulation.jl")
-include("metrics.jl")
-include("basic_sampling.jl")
 include("logistic_model.jl")
-include("logistic_sampling.jl")
+include("si_model.jl")
+include("alarm_statistic.jl")
+include("sampling.jl")
+include("simulation.jl")
 
 # include("semiparametric_single.jl")
 # import .sp_single

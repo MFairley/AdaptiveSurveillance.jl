@@ -8,4 +8,4 @@ const save_path = joinpath(dirname(pathof(AdaptiveSurveillance)), "..", "test", 
 
 include("test_data.jl")
 # include("logistic_tests.jl")
-include("sampling_policy_tests.jl")
+include("sampling_tests.jl")
