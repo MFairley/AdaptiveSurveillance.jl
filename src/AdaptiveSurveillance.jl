@@ -1,7 +1,7 @@
 module AdaptiveSurveillance
 
-include("sir.jl")
-include("logistic_solver.jl")
+include("si_model.jl")
+include("logistic_model.jl")
 include("semiparametric.jl")
 
 # include("semiparametric_single.jl")
