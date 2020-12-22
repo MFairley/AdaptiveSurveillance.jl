@@ -125,10 +125,6 @@ function profile_log_likelihood(n1::Int64, n2::Int64, tp::Int64, t::Vector{Int64
     return lp
 end
 
-function future_alarm_log_probability(n1, n2, tp, t, W, n)
-    return logsumexp(profile_log_likelihood(n1, n2, tp, t, W, n))
-end
-
 function profile_likelihood(tp, t, W, n)
     return softmax(profile_log_likelihood(0, n, tp, t, W, n))
 end

@@ -56,6 +56,7 @@ function tpolicy_evsi(L, n, astat, α, tstate, rng, test_data, locations_visited
         for l = 1:L
             f(i) = check_astat(i, n, astat, α, test_data, locations_visited, l, t)
             i = searchsortedfirst(SearchV{Int}(0:n, i -> f(i)), 1) - 1 # note this returns index so need to - 1 to get count
+            println("l = $l, i = $i")
             if i > n
                 probability_alarm[l] = -Inf
                 break
@@ -64,15 +65,13 @@ function tpolicy_evsi(L, n, astat, α, tstate, rng, test_data, locations_visited
                 break
             end
             W = @views(test_data[1:t, l])[locations_visited[1:t] .== l]
-            
+            println("l = $l, W = $W")
             times = @views((1:t))[locations_visited[1:t] .== l]
-            if i > n ÷ 2
-                probability_alarm[l] =  future_alarm_log_probability(i, n, t, times, W, n)
-            else
-                probability_alarm[l] = log1mexp(future_alarm_log_probability(0, i-1, t, times, W, n))
-                # log1mexp
-            end
+            println("l = $l, times = $times")
+            probability_alarm[l] = sum(profile_likelihood(t, times, W, n)[i+1:end])
+            println("l = $l, pfa = $(probability_alarm[l])")
         end
+        
         return argmax(probability_alarm) # be careful about getting stuck
     end
     return Int(ceil(t / 2))
