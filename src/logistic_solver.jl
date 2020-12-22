@@ -1,6 +1,5 @@
 using Random, Distributions
 using StatsBase, StatsFuns
-using FastClosures
 using Optim, NLSolversBase
 import Convex, Mosek, MosekTools
 using Plots
@@ -81,9 +80,9 @@ end
 
 function solve_logistic_Γ_subproblem_optim(Γ::Int64, tp::Int64, Wp::Int64, t::Array{Int64}, W::Array{Int64}, n::Int64,
     x0 = [0.01, logit(0.01)], lx = [0.0, -Inf], ux = [1.0, logit(0.5)])
-    fun = @closure (x) -> log_likelihood(x, Γ, tp, Wp, t, W, n)
-    fun_grad! = @closure (g, x) -> log_likelihood_grad!(g, x, Γ, tp, Wp, t, W, n)
-    fun_hess! = @closure (h, x) -> log_likelihood_hess!(h, x, Γ, tp, t, n)
+    fun = (x) -> log_likelihood(x, Γ, tp, Wp, t, W, n)
+    fun_grad! = (g, x) -> log_likelihood_grad!(g, x, Γ, tp, Wp, t, W, n)
+    fun_hess! = (h, x) -> log_likelihood_hess!(h, x, Γ, tp, t, n)
     
     df = TwiceDifferentiable(fun, fun_grad!, fun_hess!, x0)
     dfc = TwiceDifferentiableConstraints(lx, ux)
@@ -100,9 +99,8 @@ function solve_logistic_optim(tp::Int64, Wp::Int64, t::Array{Int64}, W::Array{In
     βs = 0.0
     zs = 0.0
     Γs = 0
-    for Γ = 0:maximum(t) #  # to do, fix type instability here with Threads.@threads
+    for Γ = 0:maximum(t) # type instability here with Threads.@threads
         obj, β, z = solve_logistic_Γ_subproblem_optim(Γ, tp, Wp, t, W, n)
-        # obj, β, z = solve_logistic_Γ_subproblem_convex(Γ, vcat(t, tp), vcat(W, Wp), n)
         if obj >= max_obj
             max_obj = obj
             βs, zs, Γs = β, z, Γ
@@ -120,7 +118,7 @@ function profile_log_likelihood(n1::Int64, n2::Int64, tp::Int64, t::Array{Int64}
     @assert all(t .>= 0)
     lp = zeros(n2 - n1 + 1)
     Wp_range = n1:n2
-    for i = 1:length(Wp_range) # Threads.@threads 
+    Threads.@threads for i = 1:length(Wp_range) # Threads.@threads 
         _, β, z, Γ = solve_logistic_optim(tp, Wp_range[i], t, W, n)
         lp[i] = normalized_log_likelihood(β, z, Γ, tp, Wp_range[i], t, W, n)
     end
