@@ -13,7 +13,7 @@ function replication(L, Γ::Array{Int64}, p0, p, n, astat::Function, α, tpolicy
     @assert L == size(p, 2)
     tstate = deepcopy(tstate) # this ensures that modifications to state do not affect other runs
     false_alarm = -1
-    test_data = ones(maxiters, L) * -1.0
+    test_data = ones(Int64, maxiters, L) * -1
     locations_visited = zeros(Int64, maxiters)
     ntimes_visited = zeros(Int64, maxiters, L)
     last_time_visited = ones(Int64, L) * -1
@@ -159,7 +159,7 @@ function check_astat(i, n, astat, α, test_data, locations_visited, l, t)
     test_data[t, l] = i
     locations_visited[t] = l
     z_candidate, _ = astat(n, @views(test_data[1:t, l][locations_visited[1:t] .== l])) # this is the main bottleneck
-    test_data[t, l] = -1.0
+    test_data[t, l] = -1
     locations_visited[t] = 0
     return z_candidate > log(α)
 end
@@ -173,13 +173,17 @@ function tpolicy_evsi(L, n, astat, α, tstate, rng, test_data, locations_visited
             if i > n
                 probability_alarm[l] = -Inf
                 break
+            elseif i == 0
+                probability_alarm[l] = Inf
+                break
             end
-            W = @views(test_data[1:t, l][locations_visited[1:t] .== l])
-            times = @views((1:t)[locations_visited[1:t] .== l])
+            W = @views(test_data[1:t, l])[locations_visited[1:t] .== l]
+            
+            times = @views((1:t))[locations_visited[1:t] .== l]
             if i > n ÷ 2
-                probability_alarm[l] =  future_alarm_log_probability(i, n, t, W, times, n)
+                probability_alarm[l] =  future_alarm_log_probability(i, n, t, times, W, n)
             else
-                probability_alarm[l] =  log1mexp(future_alarm_log_probability(i, n, t, W, times, n))
+                probability_alarm[l] = log1mexp(future_alarm_log_probability(0, i-1, t, times, W, n))
                 # log1mexp
             end
         end
