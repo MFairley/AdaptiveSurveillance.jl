@@ -1,3 +1,4 @@
+println("There are $(Threads.nthreads()) threads")
 println("Hello, World")
 using StatsFuns
 using AdaptiveSurveillance
@@ -56,5 +57,5 @@ write_alarm_time_distribution(obs, unobs, atd_thompson, joinpath(save_path, "atd
 # Logistic Profile
 tstate_evsi = TStateEVSI()
 println("Starting evsi")
-@time atd_evsi = alarm_time_distribution(K, obs, unobs, astate, tstate_evsi)
-write_alarm_time_distribution(obs, unobs, atd_evsi, joinpath(save_path, "atd_evsi_$(Γ_true).csv"))
+# @time atd_evsi = alarm_time_distribution(K, obs, unobs, astate, tstate_evsi)
+# write_alarm_time_distribution(obs, unobs, atd_evsi, joinpath(save_path, "atd_evsi_$(Γ_true).csv"))
