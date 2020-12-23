@@ -18,25 +18,38 @@ function StateObservable(L, n, maxiters)
     StateObservable(L, n, maxiters, ones(Int64, maxiters) * -1, ones(Int64, maxiters) * -1)
 end
 
+function reset(state::StateObservable)
+    state.x .= -1
+    state.W .= -1
+end
+
 struct StateUnobservable
     Γ::Array{Int64}
     p::Function # returns prevalance at a given time
 end
 
-# input states should be fresh
-function replication(obs::StateObservable, unobs::StateUnobservable, astate, tstate;
-    seed_system::Int64=1,
-    seed_test::Int64=1,
-    warn::Bool=true,
-    copy::Bool=true)
+function reset(state::StateUnobservable)
+end
 
-    # this prevents the replication from modifying arrays in the states
+# input states should be fresh
+function replication(obs::StateObservable, unobs::StateUnobservable, astate, tstate,
+    seed_system::Int64=1,
+    seed_test::Int64=1;
+    warn::Bool=true,
+    copy::Bool=false)
+
+    # this may be helpful for threading
     if copy
         obs = deepcopy(obs)
         unobs = deepcopy(unobs)
         astate = deepcopy(astate)
         tstate = deepcopy(tstate)
     end
+
+    reset(obs)
+    reset(unobs)
+    reset(astate)
+    reset(tstate)
 
     rng_system = MersenneTwister(seed_system)
     rng_test = MersenneTwister(seed_test)
@@ -67,7 +80,7 @@ function alarm_time_distribution(K::Int64, obs::StateObservable, unobs::StateUno
     
     alarm_times = zeros(obs.maxiters + 1) 
     Threads.@threads for k = 1:K
-        t, _ = replication(obs, unobs, k+1, astate, afunc, k+2, tstate, tfunc, k+3, warn=false)
+        t, _ = replication(obs, unobs, astate, tstate, k+1, k+2, warn=false)
         alarm_times[t] += 1
     end
     return alarm_times # missing information about which location has the alarm

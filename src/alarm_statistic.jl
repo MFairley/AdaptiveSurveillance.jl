@@ -6,6 +6,9 @@ struct AStateIsotonic # to do: make it inherit from a general alarm state
     α::Float64
 end
 
+function reset(astate::AStateIsotonic)
+end
+
 function afunc(t::Int64, obs::StateObservable, astate::AStateIsotonic)
     return astat_isotonic(obs.n, @view(obs.W[obs.x .== obs.x[t]])) > log(astate.α)
 end

@@ -3,11 +3,17 @@ struct TStateConstant
     l::Int64
 end
 
+function reset(tstate::TStateConstant)
+end
+
 function tfunc(t, obs, astate, afunc, tstate::TStateConstant, rng_test)
     return tstate.l
 end
 
 struct TStateRandom
+end
+
+function reset(tstate::TStateRandom)
 end
 
 function tfunc(t, obs, astate, afunc, tstate::TStateRandom, rng_test)
@@ -16,6 +22,10 @@ end
 
 struct TStateThompson
     beta_parameters::Array{Float64, 2}
+end
+
+function reset(tstate::TStateThompson)
+    tstate.beta_parameters .= 1
 end
 
 function tfunc(t, obs, astate, afunc, tstate::TStateThompson, rng_test)
@@ -31,6 +41,9 @@ function tfunc(t, obs, astate, afunc, tstate::TStateThompson, rng_test)
 end
 
 struct TStateEVSI
+end
+
+function reset(tstate::TStateEVSI)
 end
 
 struct SearchV{T, V, F} <: AbstractVector{T}

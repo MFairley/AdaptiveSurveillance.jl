@@ -13,15 +13,15 @@ astate = AStateIsotonic(α)
 # Sampling Policy
 # Constant
 tstate_constant = TStateConstant(1)
-res = replication(obs, unobs, astate, tstate_constant, copy=true)
+res = replication(obs, unobs, astate, tstate_constant)
 
 # Random
 tstate_random = TStateRandom()
-res = replication(obs, unobs, astate, tstate_random, copy=true)
+res = replication(obs, unobs, astate, tstate_random)
 
 # Thompson Sampling
 tstate_thompson = TStateThompson(ones(L, 2))
-res = replication(obs, unobs, astate, tstate_thompson, copy=false)
+res = replication(obs, unobs, astate, tstate_thompson)
 
 # Single Replications
 
