@@ -1,3 +1,4 @@
+using StatsFuns
 using AdaptiveSurveillance
 
 function get_save_path()

@@ -1,5 +1,6 @@
 using Random, Distributions
 using Plots
+using StatsFuns
 using AdaptiveSurveillance
 
 # Problem Set Up
