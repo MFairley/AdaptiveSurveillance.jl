@@ -3,14 +3,14 @@ struct TStateConstant
     l::Int64
 end
 
-function tfunc_constant(t, obs, astate, afunc, tstate, rng_test)
+function tfunc(t, obs, astate, afunc, tstate::TStateConstant, rng_test)
     return tstate.l
 end
 
 struct TStateRandom
 end
 
-function tpolicy_random(t, obs, astate, afunc, tstate, rng_test)
+function tfunc(t, obs, astate, afunc, tstate::TStateRandom, rng_test)
     return rand(rng_test, 1:obs.L)
 end
 
@@ -18,14 +18,14 @@ struct TStateThompson
     beta_parameters::Array{Float64, 2}
 end
 
-function tpolicy_thompson(t, obs, astate, afunc, tstate, rng_test)
+function tfunc(t, obs, astate, afunc, tstate::TStateThompson, rng_test)
     if t > 1
         l = obs.x[t - 1] # last location visited
-        beta_parameters[l, 1] += obs.W[t - 1]
-        beta_parameters[l, 2] += n - obs.W[t - 1]
+        tstate.beta_parameters[l, 1] += obs.W[t - 1]
+        tstate.beta_parameters[l, 2] += obs.n - obs.W[t - 1]
     end
-    d = [Beta(tstate.beta_parameters[l, 1], tstate.beta_parameters[l, 2]) for l = 1:L]
-    s = rand.(rng, d)
+    d = [Beta(tstate.beta_parameters[l, 1], tstate.beta_parameters[l, 2]) for l = 1:obs.L]
+    s = rand.(rng_test, d)
     l = argmax(s)
     return argmax(s)
 end
@@ -51,7 +51,7 @@ function check_astat(i, t, l, obs, astate, afunc)
     return return alarm
 end
 
-function tpolicy_evsi(t, obs, astate, afunc, tstate, rng_test)
+function tfunc(t, obs, astate, afunc, tstate::TStateEVSI, rng_test)
     probability_alarm = zeros(L)
     if t > 2 * L # warmup
         for l = 1:L

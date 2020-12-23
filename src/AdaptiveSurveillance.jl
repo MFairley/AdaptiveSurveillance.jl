@@ -22,5 +22,13 @@ export plot_profile_likelihood
 export create_system_states
 export logistic_prevalance
 export AStateIsotonic
+export StateObservable
+export StateUnobservable
+export TStateConstant
+export alarm_isotonic
+export tfunc_constant
+export TStateRandom
+export tfunc_random
+export TStateThompson
 
 end # module

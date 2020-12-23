@@ -2,10 +2,26 @@ using Random, Distributions
 using Plots
 using AdaptiveSurveillance
 
-obs, unobs = create_system_states(L, n, 150, [0 typemax(Int64)],
-    (t, Γ) -> logistic_prevalance(β_true, logit(p0_true), Γ, t))
+# Problem Set Up
+# System State
+obs = StateObservable(L, n, 150)
+unobs = StateUnobservable([0 typemax(Int64)], (t, Γ) -> logistic_prevalance(β_true, logit(p0_true), Γ, t))
 
+# Alarm State
 astate = AStateIsotonic(α)
+
+# Sampling Policy
+# Constant
+tstate_constant = TStateConstant(1)
+res = replication(obs, unobs, astate, tstate_constant, copy=true)
+
+# Random
+tstate_random = TStateRandom()
+res = replication(obs, unobs, astate, tstate_random, copy=true)
+
+# Thompson Sampling
+tstate_thompson = TStateThompson(ones(L, 2))
+res = replication(obs, unobs, astate, tstate_thompson, copy=false)
 
 # Single Replications
 

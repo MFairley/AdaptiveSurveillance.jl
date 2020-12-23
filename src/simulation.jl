@@ -14,21 +14,19 @@ struct StateObservable
     W::Array{Int64} # number of positive tests observed
 end
 
+function StateObservable(L, n, maxiters)
+    StateObservable(L, n, maxiters, ones(Int64, maxiters) * -1, ones(Int64, maxiters) * -1)
+end
+
 struct StateUnobservable
     Γ::Array{Int64}
     p::Function # returns prevalance at a given time
 end
 
-function create_system_states(L, n, maxiters, Γ, p)
-    obs = StateObservable(L, n, maxiters, zeros(Int64, maxiters) * -1, zeros(Int64, maxiters) * -1)
-    unobs = StateUnobservable(Γ, p)
-    return obs, unobs
-end
-
 # input states should be fresh
-function replication(obs::StateObservable, unobs::StateUnobservable, seed_system::Int64,
-    astate, afunc::Function, seed_alarm::Int64,
-    tstate, tfunc::Function, seed_test::Int64;
+function replication(obs::StateObservable, unobs::StateUnobservable, astate, tstate;
+    seed_system::Int64=1,
+    seed_test::Int64=1,
     warn::Bool=true,
     copy::Bool=true)
 
@@ -39,7 +37,7 @@ function replication(obs::StateObservable, unobs::StateUnobservable, seed_system
         astate = deepcopy(astate)
         tstate = deepcopy(tstate)
     end
-    
+
     rng_system = MersenneTwister(seed_system)
     rng_test = MersenneTwister(seed_test)
 
