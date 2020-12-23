@@ -1,5 +1,6 @@
-### SEARCH POLICIES
-struct TStateConstant
+abstract type TState end
+
+struct TStateConstant <: TState
     l::Int64
 end
 
@@ -10,7 +11,7 @@ function tfunc(t, obs, astate, afunc, tstate::TStateConstant, rng_test)
     return tstate.l
 end
 
-struct TStateRandom
+struct TStateRandom <: TState
 end
 
 function reset(tstate::TStateRandom)
@@ -20,7 +21,7 @@ function tfunc(t, obs, astate, afunc, tstate::TStateRandom, rng_test)
     return rand(rng_test, 1:obs.L)
 end
 
-struct TStateThompson
+struct TStateThompson <: TState
     beta_parameters::Array{Float64, 2}
 end
 
@@ -40,7 +41,7 @@ function tfunc(t, obs, astate, afunc, tstate::TStateThompson, rng_test)
     return argmax(s)
 end
 
-struct TStateEVSI
+struct TStateEVSI <: TState
 end
 
 function reset(tstate::TStateEVSI)
@@ -77,10 +78,8 @@ function tfunc(t, obs, astate, afunc, tstate::TStateEVSI, rng_test)
                 probability_alarm[l] = 1.0
                 break
             end
-            past_times = (1:t-1)[obs.x[1:t-1] .== l]
-            past_counts = obs.W[obs.x .== l]
-            # println(past_times)
-            # print(past_counts)
+            past_times = @view((1:obs.maxiters)[obs.x .== l])
+            past_counts = @view(obs.W[obs.x .== l])
             probability_alarm[l] = sum(profile_likelihood(t, past_times, past_counts, obs.n)[i+1:end])
         end
         return argmax(probability_alarm) # be careful about getting stuck

@@ -2,7 +2,9 @@ using StatsFuns
 using Distributions
 using Isotonic
 
-struct AStateIsotonic # to do: make it inherit from a general alarm state
+abstract type AState end
+
+struct AStateIsotonic <: AState
     α::Float64
 end
 

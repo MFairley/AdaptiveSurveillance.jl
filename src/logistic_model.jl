@@ -21,7 +21,7 @@ function normalized_log_likelihood_scalar(β::Float64, z::Float64, Γ::Int64, t:
     return logpdf(Binomial(n, p), W)
 end
 
-function normalized_log_likelihood(β::Float64, z::Float64, Γ::Int64, tp::Int64, Wp::Int64, t::Vector{Int64}, W::Vector{Int64}, n::Int64)
+function normalized_log_likelihood(β::Float64, z::Float64, Γ::Int64, tp::Int64, Wp::Int64, t::AbstractVector{Int64}, W::AbstractVector{Int64}, n::Int64)
     f = 0.0
     for i = 1:length(W)
         f += normalized_log_likelihood_scalar(β, z, Γ, t[i], W[i], n)
@@ -35,7 +35,7 @@ function log_likelihood_scalar(β, z, Γ::Int64, t::Int64, W::Int64, n::Int64)
     return W * coeff - n * log1pexp(coeff)
 end
 
-function log_likelihood(x, Γ::Int64, tp::Int64, Wp::Int64, t::Vector{Int64}, W::Vector{Int64}, n::Int64)
+function log_likelihood(x, Γ::Int64, tp::Int64, Wp::Int64, t::AbstractVector{Int64}, W::AbstractVector{Int64}, n::Int64)
     β, z = x[1], x[2]
     f = 0.0
     for i = 1:length(W)
@@ -52,7 +52,7 @@ function log_likelihood_grad_scalar!(g::Vector{Float64}, β::Float64, z::Float64
     g[2] -= W - n * sigd1
 end
 
-function log_likelihood_grad!(g::Vector{Float64}, x::Vector{Float64}, Γ::Int64, tp::Int64, Wp::Int64, t::Vector{Int64}, W::Vector{Int64}, n::Int64)
+function log_likelihood_grad!(g::Vector{Float64}, x::Vector{Float64}, Γ::Int64, tp::Int64, Wp::Int64, t::AbstractVector{Int64}, W::AbstractVector{Int64}, n::Int64)
     β, z = x[1], x[2]
     g[1] = 0.0
     g[2] = 0.0
@@ -71,7 +71,7 @@ function log_likelihood_hess_scalar!(h::Array{Float64}, β::Float64, z::Float64,
     h[2, 2] -= -n * sigd2
 end
 
-function log_likelihood_hess!(h::Array{Float64}, x::Vector{Float64}, Γ::Int64, tp::Int64, t::Vector{Int64}, n::Int64)
+function log_likelihood_hess!(h::Array{Float64}, x::Vector{Float64}, Γ::Int64, tp::Int64, t::AbstractVector{Int64}, n::Int64)
     β, z = x[1], x[2]
     h[1, 1] = 0.0
     h[1, 2] = 0.0
@@ -83,7 +83,7 @@ function log_likelihood_hess!(h::Array{Float64}, x::Vector{Float64}, Γ::Int64, 
     log_likelihood_hess_scalar!(h, β, z, Γ, tp, n)
 end
 
-function solve_logistic_Γ_subproblem_optim(Γ::Int64, tp::Int64, Wp::Int64, t::Vector{Int64}, W::Vector{Int64}, n::Int64;
+function solve_logistic_Γ_subproblem_optim(Γ::Int64, tp::Int64, Wp::Int64, t::AbstractVector{Int64}, W::AbstractVector{Int64}, n::Int64;
     x0 = [0.01, logit(0.01)], lx = [0.0, -Inf], ux = [1.0, logit(0.5)])
     fun = (x) -> log_likelihood(x, Γ, tp, Wp, t, W, n)
     fun_grad! = (g, x) -> log_likelihood_grad!(g, x, Γ, tp, Wp, t, W, n)
@@ -99,7 +99,7 @@ function solve_logistic_Γ_subproblem_optim(Γ::Int64, tp::Int64, Wp::Int64, t::
     return obj, β, z
 end
 
-function solve_logistic_optim(tp::Int64, Wp::Int64, t::Vector{Int64}, W::Vector{Int64}, n::Int64)
+function solve_logistic_optim(tp::Int64, Wp::Int64, t::AbstractVector{Int64}, W::AbstractVector{Int64}, n::Int64)
     max_obj = -Inf64
     βs = 0.0
     zs = 0.0
@@ -114,7 +114,7 @@ function solve_logistic_optim(tp::Int64, Wp::Int64, t::Vector{Int64}, W::Vector{
     return max_obj, βs, zs, Γs
 end
 
-function profile_log_likelihood(tp::Int64, t::Vector{Int64}, W::Vector{Int64}, n::Int64)
+function profile_log_likelihood(tp::Int64, t::AbstractVector{Int64}, W::AbstractVector{Int64}, n::Int64)
     @assert tp > maximum(t)
     @assert all(0 .<= W .<= n)
     @assert all(t .>= 0)

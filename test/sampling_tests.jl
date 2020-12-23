@@ -5,12 +5,12 @@ using AdaptiveSurveillance
 # Problem Set Up
 # System State
 obs = StateObservable(L, n, 150)
-unobs = StateUnobservable([0 typemax(Int64)], (t, Γ) -> logistic_prevalance(β_true, logit(p0_true), Γ, t))
+unobs = StateUnobservable([1 typemax(Int64)], (t, Γ) -> logistic_prevalance(β_true, logit(p0_true), Γ, t))
 
 # Alarm State
 astate = AStateIsotonic(α)
 
-# Sampling Policy
+# Sampling Policy Tests
 # Constant
 tstate_constant = TStateConstant(1)
 res = replication(obs, unobs, astate, tstate_constant)
@@ -25,20 +25,12 @@ res = replication(obs, unobs, astate, tstate_thompson)
 
 # Logistic Profile
 tstate_evsi = TStateEVSI()
-res = replication(obs, unobs, astate, tstate_evsi)
+# res = replication(obs, unobs, astate, tstate_evsi)
 
-# Single Replications
-
-
-# Probability of Cuessful Detection
-
-# @time iters, la, false_alarm, delay, test_data, locations_visited, ntimes_visisted, 
-# last_time_visited, z, w, prevalance_history = replication(L, [0 typemax(Int64)], ones(L) * p0_true, p_sequence, n,
-#     astat_isotonic, α, tpolicy_evsi, tstate_evsi(),
-#     rng1 = MersenneTwister(1), rng2 = MersenneTwister(2), maxiters = 100);
-
-# # plot(1:iters-1, hcat(z[1:iters], repeat([log(α)], iters-1)), xlabel = "Week", ylabel = "Alarm Statistic", 
-# #     label = [permutedims(["Location $l" for l = 1:L])... "Threshold"], legend=:topleft)
-
-# plot(2:(iters-1), hcat(z[3:iters, :], repeat([log(α)], iters-2)), xlabel = "Week", ylabel = "Alarm Statistic", 
-#     label = [permutedims(["Location $l" for l = 1:L])... "Threshold"], legend=:topleft)
+# PSD
+K = 2
+atd_constant = alarm_time_distribution(K, obs, unobs, astate, tstate_constant)
+write_alarm_time_distribution(obs, unobs, atd_constant, joinpath(save_path, "atd_constant.csv"))
+atd_random = alarm_time_distribution(K, obs, unobs, astate, tstate_random)
+atd_thompson = alarm_time_distribution(K, obs, unobs, astate, tstate_thompson)
+@time atd_evsi = alarm_time_distribution(K, obs, unobs, astate, tstate_evsi)
