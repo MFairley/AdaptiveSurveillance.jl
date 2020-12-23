@@ -13,5 +13,5 @@ end
 const save_path = tmp
 
 include("test_data.jl")
-include("logistic_tests.jl")
+# include("logistic_tests.jl")
 include("sampling_tests.jl")
