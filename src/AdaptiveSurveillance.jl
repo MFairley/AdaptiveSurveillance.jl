@@ -1,5 +1,6 @@
 module AdaptiveSurveillance
 
+include("linear_pava.jl")
 include("logistic_model.jl")
 include("simulation.jl")
 include("alarm_statistic.jl")
