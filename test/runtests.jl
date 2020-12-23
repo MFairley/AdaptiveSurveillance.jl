@@ -4,8 +4,14 @@ using Random
 using ForwardDiff
 using AdaptiveSurveillance
 
-const save_path = joinpath(dirname(pathof(AdaptiveSurveillance)), "..", "test", "tmp")
+tmp = joinpath(dirname(pathof(AdaptiveSurveillance)), "..", "test", "tmp")
+if startswith(gethostname(), "sh")
+    tmp = ENV["SCRATCH"]
+elseif gethostname() != "Michaels-iMac.lan"
+    tmp = ""
+end
+const save_path = tmp
 
 include("test_data.jl")
-# include("logistic_tests.jl")
+include("logistic_tests.jl")
 include("sampling_tests.jl")

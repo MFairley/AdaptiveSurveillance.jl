@@ -1,6 +1,5 @@
 using StatsFuns
 using Distributions
-using Isotonic
 
 abstract type AState end
 
