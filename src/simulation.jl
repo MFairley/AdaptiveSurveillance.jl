@@ -24,7 +24,7 @@ end
 
 struct StateUnobservable
     Γ::Array{Int64} # the outbreak start time in each location
-    p::Function # returns prevalance at a given time
+    p::Function # returns prevalance at a given time, make different for different locations
 end
 
 function reset(state::StateUnobservable)
