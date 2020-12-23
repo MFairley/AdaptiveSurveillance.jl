@@ -1,2 +1,2 @@
 println("Hello, World")
-println("There are $(Threads.nthreads()) threads")
+# println("There are $(Threads.nthreads()) threads")
