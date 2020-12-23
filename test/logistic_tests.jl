@@ -1,3 +1,7 @@
+using ForwardDiff
+using Random
+using AdaptiveSurveillance
+
 @testset "Logistic Solver" begin
 @testset "Verify Gradient and Hessian" begin
     n_checks = 1000

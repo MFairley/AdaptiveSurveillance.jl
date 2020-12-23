@@ -5,8 +5,8 @@ using AdaptiveSurveillance
 
 # Problem Set Up
 # System State
-obs = StateObservable(L, n, 150)
-unobs = StateUnobservable([1 typemax(Int64)], (t, Γ) -> logistic_prevalance(β_true, logit(p0_true), Γ, t))
+obs = StateObservable(L, n, maxiters)
+unobs = StateUnobservable(β_true_L, p0_true_L, Γ_true_L)
 
 # Alarm State
 astate = AStateIsotonic(α)
@@ -23,10 +23,11 @@ tstate_thompson = TStateThompson(ones(L, 2))
 
 # Logistic Profile
 tstate_evsi = TStateEVSI()
+evsi_test = replication(obs, unobs, astate, tstate_evsi)
 
-# PSD
-K = 2
+# Alarm Time Distributions
+const K = 2
 atd_constant = alarm_time_distribution(K, obs, unobs, astate, tstate_constant)
 atd_random = alarm_time_distribution(K, obs, unobs, astate, tstate_random)
 atd_thompson = alarm_time_distribution(K, obs, unobs, astate, tstate_thompson)
-@time atd_evsi = alarm_time_distribution(K, obs, unobs, astate, tstate_evsi)
+# @time atd_evsi = alarm_time_distribution(K, obs, unobs, astate, tstate_evsi)

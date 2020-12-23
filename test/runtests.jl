@@ -1,7 +1,4 @@
 using Test
-using Random
-# using Plots
-using ForwardDiff
 using AdaptiveSurveillance
 
 tmp = joinpath(dirname(pathof(AdaptiveSurveillance)), "..", "test", "tmp")

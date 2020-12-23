@@ -23,8 +23,9 @@ function reset(state::StateObservable)
 end
 
 struct StateUnobservable
+    β::Array{Float64} # the transmissionr ate in each location
+    p0::Array{Float64} # the initial prevalance in each location
     Γ::Array{Int64} # the outbreak start time in each location
-    p::Function # returns prevalance at a given time, make different for different locations
 end
 
 function reset(state::StateUnobservable)
@@ -67,7 +68,7 @@ function replication(obs::StateObservable, unobs::StateUnobservable, astate, tst
 end
 
 function sample_test_data(t, l, obs, unobs, rng_system)
-    p = unobs.p(t, unobs.Γ[l])
+    p = logistic_prevalance(unobs.β[l], logit(unobs.p0[l]), unobs.Γ[l], t)
     return rand(rng_system, Binomial(obs.n, p))
 end
 
