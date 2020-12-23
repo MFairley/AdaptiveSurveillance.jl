@@ -1,6 +1,7 @@
 println("Hello, World")
 using StatsFuns
 using AdaptiveSurveillance
+println("Module Loaded")
 
 function get_save_path()
     save_path = joinpath(dirname(pathof(AdaptiveSurveillance)), "..", "results", "tmp")
@@ -38,6 +39,7 @@ astate = AStateIsotonic(α)
 const K = 2
 # Constant
 tstate_constant = TStateConstant(1)
+println("Starting sampling")
 atd_constant = alarm_time_distribution(K, obs, unobs, astate, tstate_constant)
 write_alarm_time_distribution(obs, unobs, atd_constant, joinpath(save_path, "atd_constant_$(Γ_true).csv"))
 
