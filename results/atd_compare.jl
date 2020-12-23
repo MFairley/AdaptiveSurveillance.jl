@@ -1,4 +1,4 @@
-# println("There are $(Threads.nthreads()) threads")
+println("There are $(Threads.nthreads()) threads")
 println("Hello, World")
 # using StatsFuns
 # using AdaptiveSurveillance

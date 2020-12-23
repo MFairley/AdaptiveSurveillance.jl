@@ -8,4 +8,4 @@
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=mfairley@stanford.edu
 ml julia
-julia --machine-file <(srun hostname -s) -t $SLURM_CPUS_PER_TASK results/atd_compare.jl
+julia --machine-file <(srun hostname -s) -t $SLURM_CPUS_PER_TASK results/hello_world.jl
