@@ -84,7 +84,7 @@ function log_likelihood_hess!(h::Array{Float64}, x::Vector{Float64}, Γ::Int64, 
 end
 
 function solve_logistic_Γ_subproblem_optim(Γ::Int64, tp::Int64, Wp::Int64, t::AbstractVector{Int64}, W::AbstractVector{Int64}, n::Int64;
-    x0 = [0.01, logit(0.01)], lx = [0.0, -Inf], ux = [1.0, logit(0.5)])
+    x0 = [0.01, logit(0.01)], lx = [0.0, -Inf], ux = [0.1, logit(0.1)])
     fun = (x) -> log_likelihood(x, Γ, tp, Wp, t, W, n)
     fun_grad! = (g, x) -> log_likelihood_grad!(g, x, Γ, tp, Wp, t, W, n)
     fun_hess! = (h, x) -> log_likelihood_hess!(h, x, Γ, tp, t, n)
