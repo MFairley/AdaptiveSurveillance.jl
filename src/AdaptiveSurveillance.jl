@@ -30,5 +30,6 @@ export tfunc_constant
 export TStateRandom
 export tfunc_random
 export TStateThompson
+export TStateEVSI
 
 end # module

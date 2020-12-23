@@ -23,6 +23,10 @@ res = replication(obs, unobs, astate, tstate_random)
 tstate_thompson = TStateThompson(ones(L, 2))
 res = replication(obs, unobs, astate, tstate_thompson)
 
+# Logistic Profile
+tstate_evsi = TStateEVSI()
+res = replication(obs, unobs, astate, tstate_evsi)
+
 # Single Replications
 
 
