@@ -13,7 +13,7 @@ struct StateObservable
     W::Array{Int64} # number of positive tests observed
 end
 
-function StateObservable(L, n, maxiters)
+function StateObservable(L::Int64, n::Int64, maxiters::Int64)
     StateObservable(L, n, maxiters, ones(Int64, maxiters) * -1, ones(Int64, maxiters) * -1)
 end
 
@@ -23,7 +23,7 @@ function reset(state::StateObservable)
 end
 
 struct StateUnobservable
-    β::Array{Float64} # the transmissionr ate in each location
+    β::Array{Float64} # the transmission rate in each location
     p0::Array{Float64} # the initial prevalance in each location
     Γ::Array{Int64} # the outbreak start time in each location
 end
@@ -53,7 +53,7 @@ function replication(obs::StateObservable, unobs::StateUnobservable, astate, tst
     rng_system = MersenneTwister(seed_system)
     rng_test = MersenneTwister(seed_test)
 
-    for t = 1:obs.maxiters
+    for t = 1:obs.maxiters # time starts at 1
         # Sample from a location and observe positive count
         obs.x[t] = tfunc(t, obs, astate, afunc, tstate, rng_test)
         obs.W[t] = sample_test_data(t, obs.x[t], obs, unobs, rng_system)
@@ -88,25 +88,8 @@ function write_alarm_time_distribution(obs, unobs, alarm_times, filename)
     p_sequence = zeros(size(alarm_times, 1), obs.L)
     for l = 1:obs.L
         for t = 1:size(alarm_times, 1)
-            p_sequence[t, l] = unobs.p(t, unobs.Γ[l])
+            p_sequence[t, l] = logistic_prevalance(unobs.β[l], logit(unobs.p0[l]), unobs.Γ[l], t)
         end
     end
     writedlm(filename, hcat(p_sequence, alarm_times), ",")
 end
-
-# function probability_successfull_detection_l(K::Int64, l::Int64, d::Int64, obs::StateObservable, unobs::StateUnobservable,
-#     astate, tstate;
-#     conf_level=0.95)
-
-#     z_score = quantile(Normal(0, 1), 1 - (1 - conf_level)/2)
-#     Γ = unobs.Γ[l]
-#     @assert(Γ + d <= obs.maxiters)
-
-#     alarm_times = alarm_time_distribution(K, obs, unobs, astate, tstate)
-#     post_detections = sum(alarm_times[Γ:end])
-#     successful_detections = sum(alarm_times[Γ:(Γ + d)])
-#     psd = successful_detections / post_detections
-#     hw = z_score * sqrt(psd * (1 - psd) / post_detections)
-    
-#     return psd, hw
-# end

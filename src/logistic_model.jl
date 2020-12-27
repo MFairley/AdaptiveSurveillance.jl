@@ -1,13 +1,59 @@
 using Random, Distributions
 using StatsBase, StatsFuns
-using Optim, NLSolversBase
+using Optim, NLSolversBase, LineSearches
 import Convex, Mosek, MosekTools
 using Plots
 
 # Initial values, lower and upper bounds for beta and z
 const x0 = [0.01, logit(0.01)]
-const lx = [0.0, -Inf]
-const ux = [0.1, logit(0.1)]
+const lx = [-1e6, -1e6]
+const ux = [1e6, 1e6]
+
+### Projected Gradient Descent
+function pgd(β, z, Γ::Int64, tp::Int64, Wp::Int64, t::AbstractVector{Int64}, W::AbstractVector{Int64}, n::Int64;
+    maxiters = 1000, α0 = 1.0)
+    i = 1
+    g = zeros(2)
+    log_likelihood_grad!(g, [β, z], Γ, tp, Wp, t, W, n) # change to not in place later
+    while (i <= maxiters) && !(convergence_test(β, lx[1], ux[1], g[1]) && convergence_test(z, lx[2], ux[2], g[2]))
+        ϕ2 = (α) -> ϕ(α, β, z, g[1], g[2], Γ, tp, Wp, t, W, n)
+        dϕ2 = (α) -> dϕ(α, β, z, g[1], g[2], Γ, tp, Wp, t, W, n)
+        ϕdϕ2 = (α) -> ϕdϕ(α, β, z, g[1], g[2], Γ, tp, Wp, t, W, n)
+        ϕ0, dϕ0 = ϕdϕ2(0.0)
+        α, _ = BackTracking()(ϕ2, dϕ2, ϕdϕ2, α0, ϕ0, dϕ0)
+        β, z = β - α * g[1], z - α * g[2]
+        log_likelihood_grad!(g, [β, z], Γ, tp, Wp, t, W, n) 
+        i += 1
+    end
+    return β, z
+end
+
+function ϕ(α, β, z, gβ, gz, Γ, tp, Wp, t, W, n)
+    log_likelihood([β - α * gβ, z - α * gz], Γ, tp, Wp, t, W, n)
+end
+
+function dϕ(α, β, z, gβ, gz, Γ, tp, Wp, t, W, n)
+    g = zeros(2)
+    log_likelihood_grad!(g, [β - α * gβ, z - α * gz], Γ, tp, Wp, t, W, n)
+    return sum(g .* [-gβ, -gz])
+end
+
+function ϕdϕ(α, β, z, gβ, gz, Γ, tp, Wp, t, W, n)
+    return ϕ(α, β, z, gβ, gz, Γ, tp, Wp, t, W, n), dϕ(α, β, z, gβ, gz, Γ, tp, Wp, t, W, n)
+end
+
+function convergence_test(x, l, u, g, tol=1e-3) # returns true if converged
+    return (abs(g) < tol) #|| ((x == l) && (-g < 0.0)) || ((x == u) && (-g > 0.0))
+end
+
+function box_projection(x, l, u)
+    if x > u
+        return u
+    elseif x < l
+        return l
+    end
+    return x
+end
 
 ### Optim
 function f_coeff(β, z, Γ::Int64, t::Int64)
@@ -89,16 +135,19 @@ function log_likelihood_hess!(h::Array{Float64}, x::Vector{Float64}, Γ::Int64, 
 end
 
 function solve_logistic_Γ_subproblem_optim(Γ::Int64, tp::Int64, Wp::Int64, t::AbstractVector{Int64}, W::AbstractVector{Int64}, n::Int64)
-    fun = (x) -> log_likelihood(x, Γ, tp, Wp, t, W, n)
-    fun_grad! = (g, x) -> log_likelihood_grad!(g, x, Γ, tp, Wp, t, W, n)
-    fun_hess! = (h, x) -> log_likelihood_hess!(h, x, Γ, tp, t, n)
+    # fun = (x) -> log_likelihood(x, Γ, tp, Wp, t, W, n)
+    # fun_grad! = (g, x) -> log_likelihood_grad!(g, x, Γ, tp, Wp, t, W, n)
+    # fun_hess! = (h, x) -> log_likelihood_hess!(h, x, Γ, tp, t, n)
     
-    df = TwiceDifferentiable(fun, fun_grad!, fun_hess!, x0)
-    dfc = TwiceDifferentiableConstraints(lx, ux)
+    # df = TwiceDifferentiable(fun, fun_grad!, fun_hess!, x0)
+    # dfc = TwiceDifferentiableConstraints(lx, ux)
     
-    res = optimize(df, dfc, x0, IPNewton())
-    obj::Float64 = -Optim.minimum(res)
-    β::Float64, z::Float64 = Optim.minimizer(res)
+    # res = optimize(df, dfc, x0, IPNewton(), Optim.Options(iterations = 10))
+    # obj::Float64 = -Optim.minimum(res)
+    # β::Float64, z::Float64 = Optim.minimizer(res)
+    β, z = pgd(x0[1], x0[2], Γ, tp, Wp, t, W, n)
+    obj = -log_likelihood([β, z], Γ, tp, Wp, t, W, n)
+
 
     return obj, β, z
 end
@@ -145,11 +194,11 @@ end
 # ### Convex.jl
 function solve_logistic_Γ_subproblem_convex(Γ, t, W, n)
     tΓ = max.(0, t .- Γ)
-    β = Convex.Variable(Convex.Positive())
+    β = Convex.Variable()
     z = Convex.Variable()
     coeff = β * tΓ + z
     obj = Convex.dot(W, coeff) - n * Convex.logisticloss(coeff)
-    problem = Convex.maximize(obj, β <= ux[1], z <= ux[2])
+    problem = Convex.maximize(obj, β >= lx[1], z >= lx[2], β <= ux[1], z <= ux[2])
     Convex.solve!(problem, () -> Mosek.Optimizer(QUIET=true), verbose=false)
     return problem.optval, Convex.evaluate(β), Convex.evaluate(z)
 end
