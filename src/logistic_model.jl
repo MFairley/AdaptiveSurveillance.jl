@@ -8,42 +8,41 @@ using Plots
 const x0 = [0.01, logit(0.01)]
 const lx = [-1e6, -1e6]
 const ux = [1e6, 1e6]
+const linesearch = BackTracking()
 
 ### Projected Gradient Descent
 function pgd(β, z, Γ::Int64, tp::Int64, Wp::Int64, t::AbstractVector{Int64}, W::AbstractVector{Int64}, n::Int64;
     maxiters = 1000, α0 = 1.0)
+    ϕ1 = (α) -> ϕ(α, β, z, gβ, gz, Γ, tp, Wp, t, W, n)
+    dϕ1 = (α) -> dϕ(α, β, z, gβ, gz, Γ, tp, Wp, t, W, n)
+    ϕdϕ1 = (α) -> ϕdϕ(α, β, z, gβ, gz, Γ, tp, Wp, t, W, n)
     i = 1
-    g = zeros(2)
-    log_likelihood_grad!(g, [β, z], Γ, tp, Wp, t, W, n) # change to not in place later
-    while (i <= maxiters) && !(convergence_test(β, lx[1], ux[1], g[1]) && convergence_test(z, lx[2], ux[2], g[2]))
-        ϕ2 = (α) -> ϕ(α, β, z, g[1], g[2], Γ, tp, Wp, t, W, n)
-        dϕ2 = (α) -> dϕ(α, β, z, g[1], g[2], Γ, tp, Wp, t, W, n)
-        ϕdϕ2 = (α) -> ϕdϕ(α, β, z, g[1], g[2], Γ, tp, Wp, t, W, n)
-        ϕ0, dϕ0 = ϕdϕ2(0.0)
-        α, _ = BackTracking()(ϕ2, dϕ2, ϕdϕ2, α0, ϕ0, dϕ0)
-        β, z = β - α * g[1], z - α * g[2]
-        log_likelihood_grad!(g, [β, z], Γ, tp, Wp, t, W, n) 
+    gβ, gz = log_likelihood_grad(β, z, Γ, tp, Wp, t, W, n)
+    while (i <= maxiters) && !(convergence_test(β, lx[1], ux[1], gβ) && convergence_test(z, lx[2], ux[2], gz))
+        
+        ϕ0, dϕ0 = ϕdϕ1(0.0)
+        α, _ = linesearch(ϕ1, dϕ1, ϕdϕ1, α0, ϕ0, dϕ0)
+        β, z = β - α * gβ, z - α * gz
+        gβ, gz = log_likelihood_grad(β, z, Γ, tp, Wp, t, W, n)
         i += 1
-        println(i)
     end
     return β, z
 end
 
 function ϕ(α, β, z, gβ, gz, Γ, tp, Wp, t, W, n)
-    log_likelihood([β - α * gβ, z - α * gz], Γ, tp, Wp, t, W, n)
+    log_likelihood(β - α * gβ, z - α * gz, Γ, tp, Wp, t, W, n)
 end
 
 function dϕ(α, β, z, gβ, gz, Γ, tp, Wp, t, W, n)
-    g = zeros(2)
-    log_likelihood_grad!(g, [β - α * gβ, z - α * gz], Γ, tp, Wp, t, W, n)
-    return sum(g .* [-gβ, -gz])
+    gβα, gzα = log_likelihood_grad(β - α * gβ, z - α * gz, Γ, tp, Wp, t, W, n)
+    return gβα * -gβ + gzα * -gz
 end
 
 function ϕdϕ(α, β, z, gβ, gz, Γ, tp, Wp, t, W, n)
     return ϕ(α, β, z, gβ, gz, Γ, tp, Wp, t, W, n), dϕ(α, β, z, gβ, gz, Γ, tp, Wp, t, W, n)
 end
 
-function convergence_test(x, l, u, g, tol=1e-6) # returns true if converged
+function convergence_test(x, l, u, g, tol=1e-3) # returns true if converged
     return (abs(g) < tol) #|| ((x == l) && (-g < 0.0)) || ((x == u) && (-g > 0.0))
 end
 
@@ -147,8 +146,8 @@ function solve_logistic_Γ_subproblem_optim(Γ::Int64, tp::Int64, Wp::Int64, t::
     # res = optimize(df, dfc, x0, IPNewton(), Optim.Options(iterations = 10))
     # obj::Float64 = -Optim.minimum(res)
     # β::Float64, z::Float64 = Optim.minimizer(res)
-    β, z = pgd(x0[1], x0[2], Γ, tp, Wp, t, W, n)
-    obj = -log_likelihood([β, z], Γ, tp, Wp, t, W, n)
+    β, z = pgd(0.01, logit(0.01), Γ, tp, Wp, t, W, n)
+    obj = -log_likelihood(β, z, Γ, tp, Wp, t, W, n)
 
 
     return obj, β, z
@@ -174,7 +173,7 @@ function profile_log_likelihood(tp::Int64, t::AbstractVector{Int64}, W::Abstract
     @assert all(0 .<= W .<= n)
     @assert all(t .>= 0)
     lp = zeros(n + 1)
-    Threads.@threads for i = 0:n
+    for i = 0:n #Threads.@threads 
         _, β, z, Γ = solve_logistic_optim(tp, i, t, W, n)
         lp[i+1] = normalized_log_likelihood(β, z, Γ, tp, i, t, W, n)
     end
