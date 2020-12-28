@@ -1,15 +1,18 @@
 function f(a::Int64)
     
-    ϕ1(α) = let a = a
+    ϕ1 = let a = a
         α -> ϕ(α, a)
     end
 
-    a += 1
+    i += 1
+    while i < 10
+        a += 1
+    end
 
     return a
 end
 
-function ϕ(α, a::Int64)
+function ϕ(α::Int64, a::Int64)
     α * a
 end
 

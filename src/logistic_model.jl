@@ -3,6 +3,7 @@ using StatsBase, StatsFuns
 using Optim, NLSolversBase, LineSearches
 import Convex, Mosek, MosekTools
 using Plots
+using FastClosures
 
 # Initial values, lower and upper bounds for beta and z
 const x0 = [0.01, logit(0.01)]
@@ -14,19 +15,15 @@ const linesearch = BackTracking()
 function pgd(β, z, Γ::Int64, tp::Int64, Wp::Int64, t::AbstractVector{Int64}, W::AbstractVector{Int64}, n::Int64;
     maxiters = 1000, α0 = 1.0)
     gβ, gz = log_likelihood_grad(β, z, Γ, tp, Wp, t, W, n)
-    ϕ1 = (α) -> ϕ(α, β, z, gβ, gz, Γ, tp, Wp, t, W, n)
-    # dϕ1 = (α) -> dϕ(α, β, z, gβ, gz, Γ, tp, Wp, t, W, n)
-    # println(β)
     i = 1
-    # 
     while (i <= maxiters) #&& !(convergence_test(β, lx[1], ux[1], gβ) && convergence_test(z, lx[2], ux[2], gz))
-        # ϕdϕ1 = (α) -> ϕdϕ(α, β, z, gβ, gz, Γ, tp, Wp, t, W, n)    
-        # ϕ0, dϕ0 = ϕdϕ1(0.0)
-        # α, _ = linesearch(ϕ1, dϕ1, ϕdϕ1, α0, ϕ0, dϕ0)
-        # α = 1.0
-        # β, z = β - α * gβ, z - α * gz
-        β = β - 1.0
-        # gβ, gz = log_likelihood_grad(β, z, Γ, tp, Wp, t, W, n)
+        ϕ1 = @closure α -> ϕ(α, β, z, gβ, gz, Γ, tp, Wp, t, W, n)
+        dϕ1 = @closure α -> dϕ(α, β, z, gβ, gz, Γ, tp, Wp, t, W, n)
+        ϕdϕ1 = @closure α -> ϕdϕ(α, β, z, gβ, gz, Γ, tp, Wp, t, W, n)
+        ϕ0, dϕ0 = ϕdϕ1(0.0)
+        α, _ = linesearch(ϕ1, dϕ1, ϕdϕ1, α0, ϕ0, dϕ0)
+        β, z = β - α * gβ, z - α * gz
+        gβ, gz = log_likelihood_grad(β, z, Γ, tp, Wp, t, W, n)
         i += 1
     end
     return β, z
