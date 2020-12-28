@@ -5,22 +5,24 @@ using AdaptiveSurveillance
 @testset "Logistic Solver" begin
 @testset "Verify Gradient and Hessian" begin
     n_checks = 1000
-    H = zeros(2, 2)
     tp, Wp = 301, 20
 
     fun = (x) -> AdaptiveSurveillance.log_likelihood(x[1], x[2], Γ_true, tp, Wp, t, W, n)
     fun_grad = (x) -> AdaptiveSurveillance.log_likelihood_grad(x[1], x[2], Γ_true, tp, Wp, t, W, n)
-    fun_hess! = (h, x) -> AdaptiveSurveillance.log_likelihood_hess!(h, x, Γ_true, tp, t, n)
+    fun_invhess = (x) -> AdaptiveSurveillance.log_likelihood_invhess(x[1], x[2], Γ_true, tp, t, n)
 
     for i = 1:n_checks
         x = rand(2) .* [1, 10] .+ [0, -5]
         # ForwardDiff AutoDiff
         g = x -> ForwardDiff.gradient(fun, x)
         h = x -> ForwardDiff.hessian(fun, x)
-        # My gradients
-        fun_hess!(H, x)
+
+        # My gradient and hessian
+        invh11, invh12, invh21, invh22 = fun_invhess(x)
+        invH = [invh11 invh12; invh21 invh22]
+        
         @test all(isapprox.(g(x), fun_grad(x)))
-        @test all(isapprox.(h(x), H))
+        @test all(isapprox.(inv(h(x)), invH))
     end
 end
 
@@ -43,23 +45,23 @@ end
 # end
 # end
 
-@testset "Profile Likelihood" begin
-ti, tp = 2, 3 # time at prediction, time to predict
-plot_profile_likelihood(tp, t[1:ti+1], W[1:ti+1], n, path = save_path)
+# @testset "Profile Likelihood" begin
+# ti, tp = 2, 3 # time at prediction, time to predict
+# plot_profile_likelihood(tp, t[1:ti+1], W[1:ti+1], n, path = save_path)
 
-ti, tp = 2, 12
-plot_profile_likelihood(tp, t[1:ti+1], W[1:ti+1], n, path = save_path)
+# ti, tp = 2, 12
+# plot_profile_likelihood(tp, t[1:ti+1], W[1:ti+1], n, path = save_path)
 
-ti, tp = 50, 51
-plot_profile_likelihood(tp, t[1:ti+1], W[1:ti+1], n, path = save_path)
+# ti, tp = 50, 51
+# plot_profile_likelihood(tp, t[1:ti+1], W[1:ti+1], n, path = save_path)
 
-ti, tp = 50, 60
-plot_profile_likelihood(tp, t[1:ti+1], W[1:ti+1], n, path = save_path)
+# ti, tp = 50, 60
+# plot_profile_likelihood(tp, t[1:ti+1], W[1:ti+1], n, path = save_path)
 
-ti, tp = 150, 151
-plot_profile_likelihood(tp, t[1:ti+1], W[1:ti+1], n, path = save_path)
+# ti, tp = 150, 151
+# plot_profile_likelihood(tp, t[1:ti+1], W[1:ti+1], n, path = save_path)
 
-ti, tp = 150, 160
-plot_profile_likelihood(tp, t[1:ti+1], W[1:ti+1], n, path = save_path)
-end
+# ti, tp = 150, 160
+# plot_profile_likelihood(tp, t[1:ti+1], W[1:ti+1], n, path = save_path)
+# end
 end

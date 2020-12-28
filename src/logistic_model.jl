@@ -13,16 +13,18 @@ const linesearch = BackTracking()
 
 ### Projected Gradient Descent
 function pgd(β, z, Γ::Int64, tp::Int64, Wp::Int64, t::AbstractVector{Int64}, W::AbstractVector{Int64}, n::Int64;
-    maxiters = 1000, α0 = 1.0)
+    maxiters = 10, α0 = 1.0)
+    
     gβ, gz = log_likelihood_grad(β, z, Γ, tp, Wp, t, W, n)
     i = 1
-    while (i <= maxiters) #&& !(convergence_test(β, lx[1], ux[1], gβ) && convergence_test(z, lx[2], ux[2], gz))
+    while (i <= maxiters) && !(convergence_test(β, lx[1], ux[1], gβ) && convergence_test(z, lx[2], ux[2], gz))
         ϕ1 = @closure α -> ϕ(α, β, z, gβ, gz, Γ, tp, Wp, t, W, n)
         dϕ1 = @closure α -> dϕ(α, β, z, gβ, gz, Γ, tp, Wp, t, W, n)
         ϕdϕ1 = @closure α -> ϕdϕ(α, β, z, gβ, gz, Γ, tp, Wp, t, W, n)
         ϕ0, dϕ0 = ϕdϕ1(0.0)
         α, _ = linesearch(ϕ1, dϕ1, ϕdϕ1, α0, ϕ0, dϕ0)
         β, z = β - α * gβ, z - α * gz
+
         gβ, gz = log_likelihood_grad(β, z, Γ, tp, Wp, t, W, n)
         i += 1
     end
@@ -98,20 +100,42 @@ end
 function log_likelihood_grad_scalar(β::Float64, z::Float64, Γ::Int64, t::Int64, W::Int64, n::Int64)
     tΓ, coeff = f_coeff(β, z, Γ, t)
     sigd1 = logistic(coeff)
-    return W * tΓ - n * sigd1 * tΓ, W - n * sigd1
+    return -W * tΓ + n * sigd1 * tΓ, -W + n * sigd1
 end
 
 function log_likelihood_grad(β, z, Γ::Int64, tp::Int64, Wp::Int64, t::AbstractVector{Int64}, W::AbstractVector{Int64}, n::Int64)
     gβ, gz = 0.0, 0.0
     for i = 1:length(W)
-        tmp1, tmp2 = log_likelihood_grad_scalar(β, z, Γ, t[i], W[i], n)
-        gβ -= tmp1 
-        gz -= tmp2 
+        igβ, igz = log_likelihood_grad_scalar(β, z, Γ, t[i], W[i], n)
+        gβ, gz = gβ + igβ, gz + igz
     end
-    tmp1, tmp2 = log_likelihood_grad_scalar(β, z, Γ, tp, Wp, n)
-    gβ -= tmp1 
-    gz -= tmp2
+    igβ, igz = log_likelihood_grad_scalar(β, z, Γ, tp, Wp, n)
+    gβ, gz = gβ + igβ, gz + igz
     return gβ, gz
+end
+
+function log_likelihood_hess_scalar(β::Float64, z::Float64, Γ::Int64, t::Int64, n::Int64)
+    tΓ, coeff = f_coeff(β, z, Γ, t)
+    sigd2 = logistic(coeff) * (1 - logistic(coeff))
+    h11 = n * sigd2 * tΓ^2
+    h12 = n * tΓ * sigd2
+    h21 = n * tΓ * sigd2
+    h22 = n * sigd2
+    return h11, h12, h21, h22
+end
+
+function log_likelihood_invhess(β::Float64, z::Float64, Γ::Int64, tp::Int64, t::AbstractVector{Int64}, n::Int64)
+    h11, h12, h21, h22 = 0.0, 0.0, 0.0, 0.0
+    for i = 1:length(t)
+        ih11, ih12, ih21, ih22 = log_likelihood_hess_scalar(β, z, Γ, t[i], n) 
+        h11, h12, h21, h22 = h11 + ih11, h12 + ih12, h21 + ih21, h22 + ih22
+    end
+    ih11, ih12, ih21, ih22 = log_likelihood_hess_scalar(β, z, Γ, tp, n)
+    h11, h12, h21, h22 = h11 + ih11, h12 + ih12, h21 + ih21, h22 + ih22
+
+    invdet = 1 / (h11 * h22 - h21 * h12)
+    invh11, invh12, invh21, invh22 = invdet * h22, -invdet * h21, -invdet * h12, invdet * h11
+    return invh11, invh12, invh21, invh22
 end
 
 function log_likelihood_hess_scalar!(h::Array{Float64}, β::Float64, z::Float64, Γ::Int64, t::Int64, n::Int64)
@@ -148,6 +172,7 @@ function solve_logistic_Γ_subproblem_optim(Γ::Int64, tp::Int64, Wp::Int64, t::
     # β::Float64, z::Float64 = Optim.minimizer(res)
     β, z = pgd(0.01, logit(0.01), Γ, tp, Wp, t, W, n)
     obj = -log_likelihood(β, z, Γ, tp, Wp, t, W, n)
+    # implement warm start here 
 
 
     return obj, β, z
@@ -173,7 +198,7 @@ function profile_log_likelihood(tp::Int64, t::AbstractVector{Int64}, W::Abstract
     @assert all(0 .<= W .<= n)
     @assert all(t .>= 0)
     lp = zeros(n + 1)
-    for i = 0:n #Threads.@threads 
+    Threads.@threads for i = 0:n #
         _, β, z, Γ = solve_logistic_optim(tp, i, t, W, n)
         lp[i+1] = normalized_log_likelihood(β, z, Γ, tp, i, t, W, n)
     end
