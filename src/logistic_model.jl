@@ -9,53 +9,43 @@ using FastClosures
 const x0 = [0.01, logit(0.01)]
 const lx = [-1e6, -1e6]
 const ux = [1e6, 1e6]
-const linesearch = BackTracking()
 
-### Projected Gradient Descent
+### Projected Newton's Method
 function pgd(β, z, Γ::Int64, tp::Int64, Wp::Int64, t::AbstractVector{Int64}, W::AbstractVector{Int64}, n::Int64;
     maxiters = 10, α0 = 1.0)
     
-    gβ, gz = log_likelihood_grad(β, z, Γ, tp, Wp, t, W, n)
-    i = 1
-    while (i <= maxiters) && !(convergence_test(β, lx[1], ux[1], gβ) && convergence_test(z, lx[2], ux[2], gz))
-        ϕ1 = @closure α -> ϕ(α, β, z, gβ, gz, Γ, tp, Wp, t, W, n)
-        dϕ1 = @closure α -> dϕ(α, β, z, gβ, gz, Γ, tp, Wp, t, W, n)
-        ϕdϕ1 = @closure α -> ϕdϕ(α, β, z, gβ, gz, Γ, tp, Wp, t, W, n)
-        ϕ0, dϕ0 = ϕdϕ1(0.0)
-        α, _ = linesearch(ϕ1, dϕ1, ϕdϕ1, α0, ϕ0, dϕ0)
-        β, z = β - α * gβ, z - α * gz
-
+    α = α0 # change to line search later
+    for i = 1:maxiters
         gβ, gz = log_likelihood_grad(β, z, Γ, tp, Wp, t, W, n)
-        i += 1
+        invh11, invh12, invh21, invh22 = log_likelihood_invhess(β, z, Γ, tp, t, n)
+        tβ = invh11 * gβ + invh12 * gz
+        tz = invh21 * gβ + invh22 * gz
+        
+        β, z = β - α * tβ, z - α * tz
+
+        if convergence_test(β, z, gβ, gz)
+            break
+        end
     end
     return β, z
 end
 
-function ϕ(α::Float64, β::Float64, z::Float64, gβ::Float64, gz::Float64, Γ::Int64, tp::Int64, Wp::Int64, t::AbstractVector{Int64}, W::AbstractVector{Int64}, n::Int64)
-    return log_likelihood(β - α * gβ, z - α * gz, Γ, tp, Wp, t, W, n)
+function convergence_test(β, z, gβ, gz, tol=1e-3)
+    return (abs(gβ) < tol) && (abs(gz) < tol)
 end
 
-function dϕ(α, β, z, gβ, gz, Γ, tp, Wp, t, W, n)
-    gβα, gzα = log_likelihood_grad(β - α * gβ, z - α * gz, Γ, tp, Wp, t, W, n)
-    return gβα * -gβ + gzα * -gz
-end
+# function convergence_test(x, l, u, g, tol=1e-3) # returns true if converged
+    # return (abs(g) < tol) #|| ((x == l) && (-g < 0.0)) || ((x == u) && (-g > 0.0))
+# end
 
-function ϕdϕ(α, β, z, gβ, gz, Γ, tp, Wp, t, W, n)
-    return ϕ(α, β, z, gβ, gz, Γ, tp, Wp, t, W, n), dϕ(α, β, z, gβ, gz, Γ, tp, Wp, t, W, n)
-end
-
-function convergence_test(x, l, u, g, tol=1e-3) # returns true if converged
-    return (abs(g) < tol) #|| ((x == l) && (-g < 0.0)) || ((x == u) && (-g > 0.0))
-end
-
-function box_projection(x, l, u)
-    if x > u
-        return u
-    elseif x < l
-        return l
-    end
-    return x
-end
+# function box_projection(x, l, u)
+#     if x > u
+#         return u
+#     elseif x < l
+#         return l
+#     end
+#     return x
+# end
 
 ### Optim
 function f_coeff(β, z, Γ::Int64, t::Int64)
@@ -138,43 +128,10 @@ function log_likelihood_invhess(β::Float64, z::Float64, Γ::Int64, tp::Int64, t
     return invh11, invh12, invh21, invh22
 end
 
-function log_likelihood_hess_scalar!(h::Array{Float64}, β::Float64, z::Float64, Γ::Int64, t::Int64, n::Int64)
-    tΓ, coeff = f_coeff(β, z, Γ, t)
-    sigd2 = logistic(coeff) * (1 - logistic(coeff))
-    h[1, 1] -= -n * (sigd2 * tΓ^2)
-    h[1, 2] -= -n * tΓ * sigd2
-    h[2, 1] -= -n * tΓ * sigd2
-    h[2, 2] -= -n * sigd2
-end
-
-function log_likelihood_hess!(h::Array{Float64}, x::Vector{Float64}, Γ::Int64, tp::Int64, t::AbstractVector{Int64}, n::Int64)
-    β, z = x[1], x[2]
-    h[1, 1] = 0.0
-    h[1, 2] = 0.0
-    h[2, 1] = 0.0
-    h[2, 2] = 0.0
-    for i = 1:length(t)
-        log_likelihood_hess_scalar!(h, β, z, Γ, t[i], n)
-    end
-    log_likelihood_hess_scalar!(h, β, z, Γ, tp, n)
-end
-
 function solve_logistic_Γ_subproblem_optim(Γ::Int64, tp::Int64, Wp::Int64, t::AbstractVector{Int64}, W::AbstractVector{Int64}, n::Int64)
-    # fun = (x) -> log_likelihood(x, Γ, tp, Wp, t, W, n)
-    # fun_grad! = (g, x) -> log_likelihood_grad!(g, x, Γ, tp, Wp, t, W, n)
-    # fun_hess! = (h, x) -> log_likelihood_hess!(h, x, Γ, tp, t, n)
-    
-    # df = TwiceDifferentiable(fun, fun_grad!, fun_hess!, x0)
-    # dfc = TwiceDifferentiableConstraints(lx, ux)
-    
-    # res = optimize(df, dfc, x0, IPNewton(), Optim.Options(iterations = 10))
-    # obj::Float64 = -Optim.minimum(res)
-    # β::Float64, z::Float64 = Optim.minimizer(res)
+    # implement warm start here 
     β, z = pgd(0.01, logit(0.01), Γ, tp, Wp, t, W, n)
     obj = -log_likelihood(β, z, Γ, tp, Wp, t, W, n)
-    # implement warm start here 
-
-
     return obj, β, z
 end
 
