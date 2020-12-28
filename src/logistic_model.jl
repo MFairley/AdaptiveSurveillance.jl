@@ -6,12 +6,11 @@ using Plots
 using FastClosures
 
 # Initial values, lower and upper bounds for beta and z
-const x0 = [0.01, logit(0.01)]
 const lx = [-1e6, -1e6]
 const ux = [1e6, 1e6]
 
 ### Projected Newton's Method
-function pgd(β, z, Γ::Int64, tp::Int64, Wp::Int64, t::AbstractVector{Int64}, W::AbstractVector{Int64}, n::Int64;
+function pgd(β::Float64, z::Float64, Γ::Int64, tp::Int64, Wp::Int64, t::AbstractVector{Int64}, W::AbstractVector{Int64}, n::Int64;
     maxiters = 10, α0 = 1.0)
     
     α = α0 # change to line search later
@@ -128,20 +127,21 @@ function log_likelihood_invhess(β::Float64, z::Float64, Γ::Int64, tp::Int64, t
     return invh11, invh12, invh21, invh22
 end
 
-function solve_logistic_Γ_subproblem_optim(Γ::Int64, tp::Int64, Wp::Int64, t::AbstractVector{Int64}, W::AbstractVector{Int64}, n::Int64)
-    # implement warm start here 
-    β, z = pgd(0.01, logit(0.01), Γ, tp, Wp, t, W, n)
+function solve_logistic_Γ_subproblem_optim(β0::Float64, z0::Float64, Γ::Int64, tp::Int64, Wp::Int64, t::AbstractVector{Int64}, W::AbstractVector{Int64}, n::Int64)
+    β, z = pgd(β0, z0, Γ, tp, Wp, t, W, n)
     obj = -log_likelihood(β, z, Γ, tp, Wp, t, W, n)
     return obj, β, z
 end
 
-function solve_logistic_optim(tp::Int64, Wp::Int64, t::AbstractVector{Int64}, W::AbstractVector{Int64}, n::Int64)
+function solve_logistic_optim(tp::Int64, Wp::Int64, t::AbstractVector{Int64}, W::AbstractVector{Int64}, n::Int64,
+    β0::Float64 = 0.01, z0::Float64 = 0.0)
     max_obj = -Inf64
     βs = 0.0
     zs = 0.0
     Γs = 0
     for Γ = 0:maximum(t) # type instability here with Threads.@threads
-        obj, β, z = solve_logistic_Γ_subproblem_optim(Γ, tp, Wp, t, W, n)
+        obj, β, z = solve_logistic_Γ_subproblem_optim(β0, z0, Γ, tp, Wp, t, W, n)
+        β0, z0 = β, z
         if obj >= max_obj
             max_obj = obj
             βs, zs, Γs = β, z, Γ
@@ -150,13 +150,15 @@ function solve_logistic_optim(tp::Int64, Wp::Int64, t::AbstractVector{Int64}, W:
     return max_obj, βs, zs, Γs
 end
 
-function profile_log_likelihood(tp::Int64, t::AbstractVector{Int64}, W::AbstractVector{Int64}, n::Int64)
+function profile_log_likelihood(tp::Int64, t::AbstractVector{Int64}, W::AbstractVector{Int64}, n::Int64,
+    β0::Float64 = 0.01, z0::Float64 = 0.0)
     @assert tp > maximum(t)
     @assert all(0 .<= W .<= n)
     @assert all(t .>= 0)
     lp = zeros(n + 1)
     Threads.@threads for i = 0:n #
-        _, β, z, Γ = solve_logistic_optim(tp, i, t, W, n)
+        _, β, z, Γ = solve_logistic_optim(tp, i, t, W, n, β0, z0)
+        β0, z0 = β, z
         lp[i+1] = normalized_log_likelihood(β, z, Γ, tp, i, t, W, n)
     end
     return lp
