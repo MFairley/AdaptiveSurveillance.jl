@@ -24,6 +24,7 @@ function pgd(β, z, Γ::Int64, tp::Int64, Wp::Int64, t::AbstractVector{Int64}, W
         β, z = β - α * g[1], z - α * g[2]
         log_likelihood_grad!(g, [β, z], Γ, tp, Wp, t, W, n) 
         i += 1
+        println(i)
     end
     return β, z
 end
@@ -42,7 +43,7 @@ function ϕdϕ(α, β, z, gβ, gz, Γ, tp, Wp, t, W, n)
     return ϕ(α, β, z, gβ, gz, Γ, tp, Wp, t, W, n), dϕ(α, β, z, gβ, gz, Γ, tp, Wp, t, W, n)
 end
 
-function convergence_test(x, l, u, g, tol=1e-3) # returns true if converged
+function convergence_test(x, l, u, g, tol=1e-6) # returns true if converged
     return (abs(g) < tol) #|| ((x == l) && (-g < 0.0)) || ((x == u) && (-g > 0.0))
 end
 
@@ -86,8 +87,7 @@ function log_likelihood_scalar(β, z, Γ::Int64, t::Int64, W::Int64, n::Int64)
     return W * coeff - n * log1pexp(coeff)
 end
 
-function log_likelihood(x, Γ::Int64, tp::Int64, Wp::Int64, t::AbstractVector{Int64}, W::AbstractVector{Int64}, n::Int64)
-    β, z = x[1], x[2]
+function log_likelihood(β, z, Γ::Int64, tp::Int64, Wp::Int64, t::AbstractVector{Int64}, W::AbstractVector{Int64}, n::Int64)
     f = 0.0
     for i = 1:length(W)
         f -= log_likelihood_scalar(β, z, Γ, t[i], W[i], n)
@@ -96,21 +96,23 @@ function log_likelihood(x, Γ::Int64, tp::Int64, Wp::Int64, t::AbstractVector{In
     return f
 end
 
-function log_likelihood_grad_scalar!(g::Vector{Float64}, β::Float64, z::Float64, Γ::Int64, t::Int64, W::Int64, n::Int64)
+function log_likelihood_grad_scalar(β::Float64, z::Float64, Γ::Int64, t::Int64, W::Int64, n::Int64)
     tΓ, coeff = f_coeff(β, z, Γ, t)
     sigd1 = logistic(coeff)
-    g[1] -= W * tΓ - n * sigd1 * tΓ
-    g[2] -= W - n * sigd1
+    return W * tΓ - n * sigd1 * tΓ, W - n * sigd1
 end
 
-function log_likelihood_grad!(g::Vector{Float64}, x::Vector{Float64}, Γ::Int64, tp::Int64, Wp::Int64, t::AbstractVector{Int64}, W::AbstractVector{Int64}, n::Int64)
-    β, z = x[1], x[2]
-    g[1] = 0.0
-    g[2] = 0.0
+function log_likelihood_grad(β, z, Γ::Int64, tp::Int64, Wp::Int64, t::AbstractVector{Int64}, W::AbstractVector{Int64}, n::Int64)
+    gβ, gz = 0.0, 0.0
     for i = 1:length(W)
-        log_likelihood_grad_scalar!(g, β, z, Γ, t[i], W[i], n)
+        tmp1, tmp2 = log_likelihood_grad_scalar(β, z, Γ, t[i], W[i], n)
+        gβ -= tmp1 
+        gz -= tmp2 
     end
-    log_likelihood_grad_scalar!(g, β, z, Γ, tp, Wp, n)
+    tmp1, tmp2 = log_likelihood_grad_scalar(β, z, Γ, tp, Wp, n)
+    gβ -= tmp1 
+    gz -= tmp2
+    return gβ, gz
 end
 
 function log_likelihood_hess_scalar!(h::Array{Float64}, β::Float64, z::Float64, Γ::Int64, t::Int64, n::Int64)
@@ -194,7 +196,7 @@ end
 # ### Convex.jl
 function solve_logistic_Γ_subproblem_convex(Γ, t, W, n)
     tΓ = max.(0, t .- Γ)
-    β = Convex.Variable()
+    β = Convex.Variable(Convex.Positive())
     z = Convex.Variable()
     coeff = β * tΓ + z
     obj = Convex.dot(W, coeff) - n * Convex.logisticloss(coeff)
