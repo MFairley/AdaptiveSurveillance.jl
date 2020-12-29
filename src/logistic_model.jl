@@ -12,7 +12,7 @@ const ux = [1e6, 1e6]
 
 ### Projected Newton's Method
 function pgd(β::Float64, z::Float64, Γ::Int64, tp::Int64, Wp::Int64, t::AbstractVector{Int64}, W::AbstractVector{Int64}, n::Int64;
-    maxiters = 10, α0 = 1.0)
+    maxiters = 100, α0 = 1.0)
     
     α = α0 # change to line search later
     for i = 1:maxiters
