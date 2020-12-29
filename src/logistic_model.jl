@@ -51,8 +51,8 @@ end
 function log_likelihood_grad_scalar!(g::Vector{Float64}, β::Float64, z::Float64, Γ::Int64, t::Int64, W::Int64, n::Int64)
     tΓ, coeff = f_coeff(β, z, Γ, t)
     sigd1 = logistic(coeff)
-    g[1] -= W * tΓ - n * sigd1 * tΓ
-    g[2] -= W - n * sigd1
+    g[1] += -W * tΓ + n * sigd1 * tΓ
+    g[2] += -W + n * sigd1
 end
 
 function log_likelihood_grad!(g::Vector{Float64}, x::Vector{Float64}, Γ::Int64, tp::Int64, Wp::Int64, t::AbstractVector{Int64}, W::AbstractVector{Int64}, n::Int64)
@@ -68,10 +68,10 @@ end
 function log_likelihood_hess_scalar!(h::Array{Float64}, β::Float64, z::Float64, Γ::Int64, t::Int64, n::Int64)
     tΓ, coeff = f_coeff(β, z, Γ, t)
     sigd2 = logistic(coeff) * logistic(-coeff)
-    h[1, 1] -= -n * (sigd2 * tΓ^2)
-    h[1, 2] -= -n * tΓ * sigd2
-    # h[2, 1] -= -n * tΓ * sigd2
-    h[2, 2] -= -n * sigd2
+    h[1, 1] += n * (sigd2 * tΓ^2)
+    h[1, 2] += n * sigd2 * tΓ
+    # h[2, 1] += n * tΓ * sigd2
+    h[2, 2] += n * sigd2
 end
 
 function log_likelihood_hess!(h::Array{Float64}, x::Vector{Float64}, Γ::Int64, tp::Int64, t::AbstractVector{Int64}, n::Int64)
