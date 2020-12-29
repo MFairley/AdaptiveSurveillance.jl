@@ -28,13 +28,10 @@ H = zeros(2, 2)
 # @code_warntype AdaptiveSurveillance.solve_logistic_Γ_subproblem_optim(Γr, tp, Wp, tr, Wr, n)
 # @code_warntype AdaptiveSurveillance.solve_logistic_optim(tp, Wp, tr, Wr, n) # fix issue with threads here
 
-# @code_warntype AdaptiveSurveillance.pgd(0.01, 0.0, Γr, tp, Wp, tr, Wr, n)
-# @time AdaptiveSurveillance.pgd(0.01, 0.0, Γr, tp, Wp, tr, Wr, n)
-
 # Meomory allocation
 # profile_likelihood(tp, tr, Wr, n)
 # Profile.clear_malloc_data()
-# profile_likelihood(tp, tr, Wr, n)
+#profile_likelihood(tp, tr, Wr, n)
 
 # Benchmarking
 # @benchmark profile_likelihood($tp, $tr, $Wr, $n)

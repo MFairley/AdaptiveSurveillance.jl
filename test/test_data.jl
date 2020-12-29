@@ -26,7 +26,6 @@ const t = collect(0:length(W)-1)
 # Sampling
 const L = 2
 const β_true_L = ones(Float64, L) * β_true
-# β_true_L[1] = 0.09
 const p0_true_L = ones(Float64, L) * p0_true
 const Γ_true_L = ones(Int64, L) * typemax(Int64)
 Γ_true_L[1] = 1
