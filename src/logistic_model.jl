@@ -1,6 +1,6 @@
 using Random, Distributions
 using StatsBase, StatsFuns
-using Optim, NLSolversBase
+using Optim, NLSolversBase, LineSearches
 import Convex, Mosek, MosekTools
 using Plots
 
@@ -67,7 +67,7 @@ end
 
 function log_likelihood_hess_scalar!(h::Array{Float64}, β::Float64, z::Float64, Γ::Int64, t::Int64, n::Int64)
     tΓ, coeff = f_coeff(β, z, Γ, t)
-    sigd2 = logistic(coeff) * (1 - logistic(coeff))
+    sigd2 = logistic(coeff) * logistic(-coeff)
     h[1, 1] -= -n * (sigd2 * tΓ^2)
     h[1, 2] -= -n * tΓ * sigd2
     h[2, 1] -= -n * tΓ * sigd2
@@ -98,7 +98,8 @@ function solve_logistic_Γ_subproblem_optim(β0::Float64, z0::Float64, Γ::Int64
     dfc = TwiceDifferentiableConstraints(lx, ux)
     
     res = optimize(df, dfc, x0, IPNewton())
-    # res = optimize(df, x0, Newton())
+    # res = optimize(df, x0, Newton(;linesearch = LineSearches.Static()))
+    # res = optimize(fun, fun_grad!, lx, ux, x0, Fminbox(GradientDescent())) # this is much slower compared to Newton
     obj::Float64 = -Optim.minimum(res)
     β::Float64, z::Float64 = Optim.minimizer(res)
 
