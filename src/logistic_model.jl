@@ -4,7 +4,7 @@ using Optim, NLSolversBase, LineSearches
 import Convex, Mosek, MosekTools
 using Plots
 
-const lx = [0.0, -Inf] # Lower bound does not affect convex.jl version
+const lx = [0.0, -Inf] # Lower bound does not affect Convex.jl version
 const ux = [0.1, logit(0.1)]
 
 ### Optim
@@ -86,6 +86,14 @@ function log_likelihood_hess!(h::Array{Float64}, x::Vector{Float64}, Γ::Int64, 
     h[2, 1] = h[1, 2]
 end
 
+function log_likelihood_hess_chol(h::Array{Float64}, x::Vector{Float64}, Γ::Int64, tp::Int64, t::AbstractVector{Int64}, n::Int64)
+    L = zeros(2, 2)
+    L[1, 1] = sqrt(h[1, 1])
+    L[2, 1] = h[1, 2] / L[1, 1]
+    L[2, 2] = sqrt(h[2, 2] - L[2, 1]^2)
+    return L
+end
+
 function solve_logistic_Γ_subproblem_optim(β0::Float64, z0::Float64, Γ::Int64, tp::Int64, Wp::Int64, t::AbstractVector{Int64}, W::AbstractVector{Int64}, n::Int64)
     
     # x0 = [β0, z0]
@@ -95,7 +103,7 @@ function solve_logistic_Γ_subproblem_optim(β0::Float64, z0::Float64, Γ::Int64
     fun_grad! = (g, x) -> log_likelihood_grad!(g, x, Γ, tp, Wp, t, W, n)
     fun_hess! = (h, x) -> log_likelihood_hess!(h, x, Γ, tp, t, n)
     
-    if Γ >= tp # so all tΓ are 0, just ue standard MLE
+    if Γ >= tp # so all tΓ are 0, just use standard MLE
         β = 0.0
         z = logit((sum(W) + Wp) / (n * (length(W) + 1)))
         obj = fun([β, z])
