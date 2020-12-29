@@ -120,7 +120,7 @@ function solve_logistic_optim(tp::Int64, Wp::Int64, t::AbstractVector{Int64}, W:
     βs = 0.0
     zs = 0.0
     Γs = 0
-    for Γ = 0:maximum(t) # type instability here with Threads.@threads
+    for Γ = 0:tp # type instability here with Threads.@threads
         obj, β, z = solve_logistic_Γ_subproblem_optim(β0, z0, Γ, tp, Wp, t, W, n)
         β0, z0 = β, z
         if obj >= max_obj
