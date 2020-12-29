@@ -4,6 +4,7 @@ using Optim, NLSolversBase, LineSearches
 import Convex, Mosek, MosekTools
 using Plots
 using FastClosures
+using PositiveFactorizations
 
 # Initial values, lower and upper bounds for beta and z
 const lx = [-1e6, -1e6]
@@ -11,16 +12,17 @@ const ux = [1e6, 1e6]
 
 ### Projected Newton's Method
 function pgd(β::Float64, z::Float64, Γ::Int64, tp::Int64, Wp::Int64, t::AbstractVector{Int64}, W::AbstractVector{Int64}, n::Int64;
-    maxiters = 1000, α0 = 1.0)
+    maxiters = 10, α0 = 1.0)
     
     α = α0 # change to line search later
     for i = 1:maxiters
         gβ, gz = log_likelihood_grad(β, z, Γ, tp, Wp, t, W, n)
-        invh11, invh12, invh21, invh22 = log_likelihood_invhess(β, z, Γ, tp, t, n)
-        tβ = invh11 * gβ + invh12 * gz
-        tz = invh21 * gβ + invh22 * gz
+        H = log_likelihood_hess(β, z, Γ, tp, t, n)
+        tβz = PositiveFactorizations.cholesky(Positive, H)\[ gβ, gz ]
+        # tβ = invh11 * gβ + invh12 * gz
+        # tz = invh21 * gβ + invh22 * gz
         # println(tβ)
-        β, z = β - α * tβ, z - α * tz
+        β, z = β - α * tβz[1], z - α * tβz[2]
 
         if convergence_test(β, z, gβ, gz)
             break
@@ -113,7 +115,7 @@ function log_likelihood_hess_scalar(β::Float64, z::Float64, Γ::Int64, t::Int64
     return h11, h12, h21, h22
 end
 
-function log_likelihood_invhess(β::Float64, z::Float64, Γ::Int64, tp::Int64, t::AbstractVector{Int64}, n::Int64)
+function log_likelihood_hess(β::Float64, z::Float64, Γ::Int64, tp::Int64, t::AbstractVector{Int64}, n::Int64)
     # println("β = $β, z = $z, Γ = $Γ")
     # this function is numerically unstable
     h11, h12, h21, h22 = 0.0, 0.0, 0.0, 0.0
@@ -128,12 +130,12 @@ function log_likelihood_invhess(β::Float64, z::Float64, Γ::Int64, tp::Int64, t
     # println(logistic(coeff)) # issue here since this evaluates to 1.0 exactly, numerical issue
     h11, h12, h21, h22 = h11 + ih11, h12 + ih12, h21 + ih21, h22 + ih22
 
-    # invdet = 1 / (h11 * h22 - h21 * h12)
+    invdet = 1 / (h11 * h22 - h21 * h12)
 
     # println("h11 = $h11 , h12 = $h12 , h21 = $h21 , h22 = $h22")
     invh11, invh12, invh21, invh22 = invdet * h22, -invdet * h21, -invdet * h12, invdet * h11
 
-    return invh11, invh12, invh21, invh22
+    return [h11 h12; h21 h22]
 end
 
 function solve_logistic_Γ_subproblem_optim(β0::Float64, z0::Float64, Γ::Int64, tp::Int64, Wp::Int64, t::AbstractVector{Int64}, W::AbstractVector{Int64}, n::Int64)
