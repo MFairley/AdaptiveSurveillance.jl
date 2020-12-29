@@ -70,7 +70,7 @@ function log_likelihood_hess_scalar!(h::Array{Float64}, β::Float64, z::Float64,
     sigd2 = logistic(coeff) * logistic(-coeff)
     h[1, 1] -= -n * (sigd2 * tΓ^2)
     h[1, 2] -= -n * tΓ * sigd2
-    h[2, 1] -= -n * tΓ * sigd2
+    # h[2, 1] -= -n * tΓ * sigd2
     h[2, 2] -= -n * sigd2
 end
 
@@ -78,12 +78,12 @@ function log_likelihood_hess!(h::Array{Float64}, x::Vector{Float64}, Γ::Int64, 
     β, z = x[1], x[2]
     h[1, 1] = 0.0
     h[1, 2] = 0.0
-    h[2, 1] = 0.0
     h[2, 2] = 0.0
     for i = 1:length(t)
         log_likelihood_hess_scalar!(h, β, z, Γ, t[i], n)
     end
     log_likelihood_hess_scalar!(h, β, z, Γ, tp, n)
+    h[2, 1] = h[1, 2]
 end
 
 function solve_logistic_Γ_subproblem_optim(β0::Float64, z0::Float64, Γ::Int64, tp::Int64, Wp::Int64, t::AbstractVector{Int64}, W::AbstractVector{Int64}, n::Int64)
