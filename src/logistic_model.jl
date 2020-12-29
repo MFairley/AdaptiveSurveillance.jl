@@ -4,10 +4,6 @@ using Optim, NLSolversBase
 import Convex, Mosek, MosekTools
 using Plots
 
-# Initial values, lower and upper bounds for beta and z
-const lx = [0.0, -Inf]
-const ux = [0.1, logit(0.1)]
-
 ### Optim
 function f_coeff(β, z, Γ::Int64, t::Int64)
     tΓ = max(0, t - Γ)
@@ -88,7 +84,11 @@ function log_likelihood_hess!(h::Array{Float64}, x::Vector{Float64}, Γ::Int64, 
 end
 
 function solve_logistic_Γ_subproblem_optim(β0::Float64, z0::Float64, Γ::Int64, tp::Int64, Wp::Int64, t::AbstractVector{Int64}, W::AbstractVector{Int64}, n::Int64)
+    # x0 = [β0, z0]
     x0 = [0.01, logit(0.01)] # using warm start points fails due to not being in interior
+    lx = [0.0, -Inf]
+    ux = [0.1, logit(0.1)]
+    
     fun = (x) -> log_likelihood(x, Γ, tp, Wp, t, W, n)
     fun_grad! = (g, x) -> log_likelihood_grad!(g, x, Γ, tp, Wp, t, W, n)
     fun_hess! = (h, x) -> log_likelihood_hess!(h, x, Γ, tp, t, n)
@@ -97,6 +97,7 @@ function solve_logistic_Γ_subproblem_optim(β0::Float64, z0::Float64, Γ::Int64
     dfc = TwiceDifferentiableConstraints(lx, ux)
     
     res = optimize(df, dfc, x0, IPNewton())
+    # res = optimize(df, x0, Newton())
     obj::Float64 = -Optim.minimum(res)
     β::Float64, z::Float64 = Optim.minimizer(res)
 

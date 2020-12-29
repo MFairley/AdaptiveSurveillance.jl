@@ -26,24 +26,24 @@ using AdaptiveSurveillance
     end
 end
 
-@testset "Verify Solver" begin
-rng = MersenneTwister(1234)
-tp, Wp = 301, 20
-for i = 1:length(t)
-    for Γ = 0:(i-1)
-        if rand(rng) >= 0.01 || (sum(max.(0, t[1:i] .- Γ)) == 0)
-            # do a fraction of the tests for speed
-            # beta value non-identifiable when sum(max.(0, t[1:i] .- Γ)) == 0
-            continue
-        end
-        objo, βo, zo = AdaptiveSurveillance.solve_logistic_Γ_subproblem_optim(0.01, logit(0.01), Γ, tp, Wp, t[1:i], W[1:i], n)
-        objc, βc, zc = AdaptiveSurveillance.solve_logistic_Γ_subproblem_convex(Γ, vcat(t[1:i], tp), vcat(W[1:i], Wp), n)
-        @test isapprox(objo, objc, rtol=0.15)
-        @test isapprox(βo, βc, atol=1e-2)
-        @test isapprox(zo, zc, atol=1e-2)
-    end
-end
-end
+# @testset "Verify Solver" begin
+# rng = MersenneTwister(1234)
+# tp, Wp = 301, 20
+# for i = 1:length(t)
+#     for Γ = 0:(i-1)
+#         if rand(rng) >= 0.01 || (sum(max.(0, t[1:i] .- Γ)) == 0)
+#             # do a fraction of the tests for speed
+#             # beta value non-identifiable when sum(max.(0, t[1:i] .- Γ)) == 0
+#             continue
+#         end
+#         objo, βo, zo = AdaptiveSurveillance.solve_logistic_Γ_subproblem_optim(0.01, logit(0.01), Γ, tp, Wp, t[1:i], W[1:i], n)
+#         objc, βc, zc = AdaptiveSurveillance.solve_logistic_Γ_subproblem_convex(Γ, vcat(t[1:i], tp), vcat(W[1:i], Wp), n)
+#         @test isapprox(objo, objc, rtol=0.15)
+#         @test isapprox(βo, βc, atol=1e-2)
+#         @test isapprox(zo, zc, atol=1e-2)
+#     end
+# end
+# end
 
 @testset "Profile Likelihood" begin
 ti, tp = 2, 3 # time at prediction, time to predict
