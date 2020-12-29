@@ -17,7 +17,8 @@ function pgd(β::Float64, z::Float64, Γ::Int64, tp::Int64, Wp::Int64, t::Abstra
     α = α0 # change to line search later
     for i = 1:maxiters
         gβ, gz = log_likelihood_grad(β, z, Γ, tp, Wp, t, W, n)
-        H = log_likelihood_hess(β, z, Γ, tp, t, n)
+        h11, h12, h21, h22 = log_likelihood_hess(β, z, Γ, tp, t, n)
+        H = [h11 h12; h21 h22]
         tβz = PositiveFactorizations.cholesky(Positive, H)\[ gβ, gz ]
         # tβ = invh11 * gβ + invh12 * gz
         # tz = invh21 * gβ + invh22 * gz
@@ -116,26 +117,16 @@ function log_likelihood_hess_scalar(β::Float64, z::Float64, Γ::Int64, t::Int64
 end
 
 function log_likelihood_hess(β::Float64, z::Float64, Γ::Int64, tp::Int64, t::AbstractVector{Int64}, n::Int64)
-    # println("β = $β, z = $z, Γ = $Γ")
-    # this function is numerically unstable
     h11, h12, h21, h22 = 0.0, 0.0, 0.0, 0.0
     for i = 1:length(t)
         ih11, ih12, ih21, ih22 = log_likelihood_hess_scalar(β, z, Γ, t[i], n) 
         h11, h12, h21, h22 = h11 + ih11, h12 + ih12, h21 + ih21, h22 + ih22
     end
     ih11, ih12, ih21, ih22 = log_likelihood_hess_scalar(β, z, Γ, tp, n)
-    # println("ih11 = $ih11 , ih12 = $ih12 , ih21 = $ih21 , ih22 = $ih22")
     tΓ, coeff = f_coeff(β, z, Γ, tp)
-    # println(tΓ)
-    # println(logistic(coeff)) # issue here since this evaluates to 1.0 exactly, numerical issue
     h11, h12, h21, h22 = h11 + ih11, h12 + ih12, h21 + ih21, h22 + ih22
 
-    invdet = 1 / (h11 * h22 - h21 * h12)
-
-    # println("h11 = $h11 , h12 = $h12 , h21 = $h21 , h22 = $h22")
-    invh11, invh12, invh21, invh22 = invdet * h22, -invdet * h21, -invdet * h12, invdet * h11
-
-    return [h11 h12; h21 h22]
+    return h11, h12, h21, h22
 end
 
 function solve_logistic_Γ_subproblem_optim(β0::Float64, z0::Float64, Γ::Int64, tp::Int64, Wp::Int64, t::AbstractVector{Int64}, W::AbstractVector{Int64}, n::Int64)

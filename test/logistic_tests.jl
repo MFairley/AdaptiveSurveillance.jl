@@ -18,7 +18,8 @@ using AdaptiveSurveillance
         h = x -> ForwardDiff.hessian(fun, x)
 
         # My gradient and hessian
-        H = fun_hess(x)
+        h11, h12, h21, h22 = fun_hess(x)
+        H = [h11 h12; h21 h22]
         
         @test all(isapprox.(g(x), fun_grad(x)))
         @test all(isapprox.(h(x), H))
