@@ -11,7 +11,7 @@ const ux = [1e6, 1e6]
 
 ### Projected Newton's Method
 function pgd(β::Float64, z::Float64, Γ::Int64, tp::Int64, Wp::Int64, t::AbstractVector{Int64}, W::AbstractVector{Int64}, n::Int64;
-    maxiters = 10, α0 = 1.0)
+    maxiters = 1000, α0 = 1.0)
     
     α = α0 # change to line search later
     for i = 1:maxiters
@@ -19,7 +19,7 @@ function pgd(β::Float64, z::Float64, Γ::Int64, tp::Int64, Wp::Int64, t::Abstra
         invh11, invh12, invh21, invh22 = log_likelihood_invhess(β, z, Γ, tp, t, n)
         tβ = invh11 * gβ + invh12 * gz
         tz = invh21 * gβ + invh22 * gz
-        
+        # println(tβ)
         β, z = β - α * tβ, z - α * tz
 
         if convergence_test(β, z, gβ, gz)
@@ -49,7 +49,7 @@ end
 ### Optim
 function f_coeff(β, z, Γ::Int64, t::Int64)
     tΓ = max(0, t - Γ)
-    return tΓ, β * tΓ  + z
+    return tΓ, β * tΓ + z
 end
 
 function logistic_prevalance(β::Float64, z::Float64, Γ::Int64, tp::Int64)
@@ -114,20 +114,30 @@ function log_likelihood_hess_scalar(β::Float64, z::Float64, Γ::Int64, t::Int64
 end
 
 function log_likelihood_invhess(β::Float64, z::Float64, Γ::Int64, tp::Int64, t::AbstractVector{Int64}, n::Int64)
+    # println("β = $β, z = $z, Γ = $Γ")
+    # this function is numerically unstable
     h11, h12, h21, h22 = 0.0, 0.0, 0.0, 0.0
     for i = 1:length(t)
         ih11, ih12, ih21, ih22 = log_likelihood_hess_scalar(β, z, Γ, t[i], n) 
         h11, h12, h21, h22 = h11 + ih11, h12 + ih12, h21 + ih21, h22 + ih22
     end
     ih11, ih12, ih21, ih22 = log_likelihood_hess_scalar(β, z, Γ, tp, n)
+    # println("ih11 = $ih11 , ih12 = $ih12 , ih21 = $ih21 , ih22 = $ih22")
+    tΓ, coeff = f_coeff(β, z, Γ, tp)
+    # println(tΓ)
+    # println(logistic(coeff)) # issue here since this evaluates to 1.0 exactly, numerical issue
     h11, h12, h21, h22 = h11 + ih11, h12 + ih12, h21 + ih21, h22 + ih22
 
-    invdet = 1 / (h11 * h22 - h21 * h12)
+    # invdet = 1 / (h11 * h22 - h21 * h12)
+
+    # println("h11 = $h11 , h12 = $h12 , h21 = $h21 , h22 = $h22")
     invh11, invh12, invh21, invh22 = invdet * h22, -invdet * h21, -invdet * h12, invdet * h11
+
     return invh11, invh12, invh21, invh22
 end
 
 function solve_logistic_Γ_subproblem_optim(β0::Float64, z0::Float64, Γ::Int64, tp::Int64, Wp::Int64, t::AbstractVector{Int64}, W::AbstractVector{Int64}, n::Int64)
+    # if Γ > tp # could skip optimization here and go straight to mle
     β, z = pgd(β0, z0, Γ, tp, Wp, t, W, n)
     obj = -log_likelihood(β, z, Γ, tp, Wp, t, W, n)
     return obj, β, z
