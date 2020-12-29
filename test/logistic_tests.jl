@@ -36,7 +36,7 @@ for i = 1:length(t)
             # beta value non-identifiable when sum(max.(0, t[1:i] .- Γ)) == 0
             continue
         end
-        objo, βo, zo = AdaptiveSurveillance.solve_logistic_Γ_subproblem_optim(Γ, tp, Wp, t[1:i], W[1:i], n)
+        objo, βo, zo = AdaptiveSurveillance.solve_logistic_Γ_subproblem_optim(0.01, logit(0.01), Γ, tp, Wp, t[1:i], W[1:i], n)
         objc, βc, zc = AdaptiveSurveillance.solve_logistic_Γ_subproblem_convex(Γ, vcat(t[1:i], tp), vcat(W[1:i], Wp), n)
         @test isapprox(objo, objc, rtol=0.15)
         @test isapprox(βo, βc, atol=1e-2)
