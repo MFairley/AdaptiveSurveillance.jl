@@ -8,33 +8,112 @@ using Plots
 const lx = [0.0, -Inf] # Lower bound does not affect Convex.jl version
 const ux = [0.1, logit(0.1)]
 
-# function activeset(x, Γ::Int64, tp::Int64, Wp::Int64, t::AbstractVector{Int64}, W::AbstractVector{Int64}, n::Int64;
+# options:
+# 1) projected newtons method - need further references to understand
+# 2) active set method - easy to understand and robust but annoying to code
+# 3) interior point - complex to implement, numerical issues
+
+function activeset(x0, Γ::Int64, tp::Int64, Wp::Int64, t::AbstractVector{Int64}, W::AbstractVector{Int64}, n::Int64;
+    maxiters = 1000)
+
+    # free, free -> primal feasible? dual feasible?
+    x, g = newtonβz(x0, Γ, tp, Wp, t, W, n)
+    !is_kkt(x, g) || return x
+
+    # free, u
+    x, g = newtonβ([x0[1], ux[2]], Γ, tp, Wp, t, W, n)
+    !is_kkt(x, g) || return x
+
+    # l, free
+    x, g = newtonz([0.0, x0[2]], Γ, tp, Wp, t, W, n)
+    !is_kkt(x, g) || return x
+
+    # l, u <- fixed
+    x = [0.0, ux[2]]
+    g = zeros(2)
+    log_likelihood_grad!(g, x, Γ, tp, Wp, t, W, n)
+    !is_kkt(x, g) || return x
+
+    # u, free
+    x, g = newtonz([ux[1], x0[2]], Γ, tp, Wp, t, W, n)
+    !is_kkt(x, g) || return x
+    
+    # u, u -< only option left
+    return ux
+end
+
+function is_kkt(x, g)
+    is_primal_feasible(x) && is_dual_feasible(x, g)
+end
+
+function is_primal_feasible(x) # add a tolerance? 
+    (0.0 <= x[1] <= ux[1]) && (x[2] <= ux[2])
+end
+
+function is_dual_feasible(x, g)
+    all(lagrange_multipliers(x, g) .>= 0.0) # add a tolerance?
+end
+
+function lagrange_multipliers(x, g)
+    λ_βl = x[1] > 0.0 ? 0.0 : g[1]
+    λ_βu = x[2] < ux[1] ? 0.0 : -g[1]
+    # @assert (λ_βl == 0.0) || (λ_βu == 0.0)
+    λ_zu = x[2] < ux[2] ? 0.0 : g[2]
+    return λ_βl, λ_βu, λ_zu
+end
+
+# function ipnewton(x, Γ::Int64, tp::Int64, Wp::Int64, t::AbstractVector{Int64}, W::AbstractVector{Int64}, n::Int64;
 #     maxiters = 1000)
-
-#     xf = newton(x, Γ, tp, Wp, t, W, n)
-#     !is_feasible(xf) || return xf
-
-#     # fun = (z) -> log_likelihood([0.0, ], Γ, tp, Wp, t, W, n)
+#     # interior point newton to do
+#     # see https://github.com/JuliaNLSolvers/Optim.jl/blob/master/src/multivariate/solvers/constrained/ipnewton/ipnewton.jl
 
 # end
 
-function is_feasible(x)
-    return (lx[1] <= x[1] <= ux[1]) && (lx[2] <= x[2] <= ux[2])
+function newtonβ(x, Γ::Int64, tp::Int64, Wp::Int64, t::AbstractVector{Int64}, W::AbstractVector{Int64}, n::Int64;
+    maxiters = 1000)
+
+    g = zeros(2)
+    H = zeros(2, 2)
+    for i = 1:maxiters
+        log_likelihood_grad!(g, x, Γ, tp, Wp, t, W, n)
+        log_likelihood_hess!(H, x, Γ, tp, t, n)
+        if abs(H[1, 1]) < 1e-6
+            H[1, 1] += 1
+        end
+        x = [x[1] - H[1, 1] \ g[1], x[2]]
+
+        if convergence_test(x[1], g[1], H[1, 1])
+            break
+        end
+    end
+    return x, g
 end
 
-function ipnewton(x, Γ::Int64, tp::Int64, Wp::Int64, t::AbstractVector{Int64}, W::AbstractVector{Int64}, n::Int64;
+function newtonz(x, Γ::Int64, tp::Int64, Wp::Int64, t::AbstractVector{Int64}, W::AbstractVector{Int64}, n::Int64;
     maxiters = 1000)
-    # interior point newton to do
-    # see https://github.com/JuliaNLSolvers/Optim.jl/blob/master/src/multivariate/solvers/constrained/ipnewton/ipnewton.jl
-    # could also try bound constrained lagrangian method, see alg 17.4 in nocedal 
 
+    g = zeros(2)
+    H = zeros(2, 2)
+    for i = 1:maxiters
+        log_likelihood_grad!(g, x, Γ, tp, Wp, t, W, n)
+        log_likelihood_hess!(H, x, Γ, tp, t, n)
+        if abs(H[2, 2]) < 1e-6
+            H[2, 2] += 1
+        end
+        x = [x[1], x[2] - H[2, 2] \ g[2]]
+
+        if convergence_test(x[2], g[2], H[2, 2])
+            break
+        end
+    end
+    return x, g
 end
 
-function newton(x, Γ::Int64, tp::Int64, Wp::Int64, t::AbstractVector{Int64}, W::AbstractVector{Int64}, n::Int64;
+function newtonβz(x, Γ::Int64, tp::Int64, Wp::Int64, t::AbstractVector{Int64}, W::AbstractVector{Int64}, n::Int64;
     maxiters = 1000)
-    
-    g = @MVector zeros(2) # to do: change this to non-memory allocating
-    H = @MMatrix zeros(2, 2)
+
+    g = zeros(2) # to do: change this to non-memory allocating
+    H = zeros(2, 2)
     # can probably make non-allocating by using SVector from StaticArrays and changing grad and hess to not be in place
     # StaticArrays lets you do usual linear algebra operations otherwise will need to manually implement those oeprations to prevent
     # memory allocation
@@ -42,14 +121,14 @@ function newton(x, Γ::Int64, tp::Int64, Wp::Int64, t::AbstractVector{Int64}, W:
     for i = 1:maxiters
         log_likelihood_grad!(g, x, Γ, tp, Wp, t, W, n)
         log_likelihood_hess!(H, x, Γ, tp, t, n)
-        # F = PositiveFactorizations.cholesky!(Positive, H) # adjusted hessian to deal with near positive definite matrices
-        x = x - H\g
+        F = PositiveFactorizations.cholesky!(Positive, H) # adjusted hessian to deal with near positive definite matrices
+        x = x - F\g
 
         if convergence_test(x, g, H)
             break
         end
     end
-    return x
+    return x, g
 end
 
 function convergence_test(x, g, H, tol=1e-3)
@@ -133,7 +212,7 @@ function log_likelihood_hess!(h, x, Γ::Int64, tp::Int64, t::AbstractVector{Int6
     end
     log_likelihood_hess_scalar!(h, β, z, Γ, tp, n)
     h[2, 1] = h[1, 2]
-    # println(h)
+    println(h)
 end
 
 function log_likelihood_hess_chol(h::Array{Float64}, x::Vector{Float64}, Γ::Int64, tp::Int64, t::AbstractVector{Int64}, n::Int64)
@@ -147,8 +226,8 @@ end
 function solve_logistic_Γ_subproblem_optim(β0::Float64, z0::Float64, Γ::Int64, tp::Int64, Wp::Int64, t::AbstractVector{Int64}, W::AbstractVector{Int64}, n::Int64)
     
     # x0 = [β0, z0]
-    x0 = @MVector [β0, z0]
-    # x0 = [0.01, logit(0.01)] # using warm start points fails due to not being in interior
+    # x0 = @MVector [β0, z0]
+    x0 = [0.01, logit(0.01)] # using warm start points fails due to not being in interior
     
     fun = (x) -> log_likelihood(x, Γ, tp, Wp, t, W, n)
     fun_grad! = (g, x) -> log_likelihood_grad!(g, x, Γ, tp, Wp, t, W, n)
@@ -156,21 +235,24 @@ function solve_logistic_Γ_subproblem_optim(β0::Float64, z0::Float64, Γ::Int64
     
     if Γ >= tp # so all tΓ are 0, just use standard MLE
         β = 0.0 # unindentifiable 
-        z = logit((sum(W) + Wp) / (n * (length(W) + 1)))
+        z = logit((sum(W) + Wp) / (n * (length(W) + 1))) # should set a constraint on this
         obj = fun([β, z])
         return obj, β, z
     end
 
-    # df = TwiceDifferentiable(fun, fun_grad!, fun_hess!, x0)
-    # dfc = TwiceDifferentiableConstraints(lx, ux)
+    df = TwiceDifferentiable(fun, fun_grad!, fun_hess!, x0)
+    dfc = TwiceDifferentiableConstraints(lx, ux)
     
     # res = optimize(df, dfc, x0, IPNewton())
-    # res = optimize(df, x0, Newton(;linesearch = LineSearches.Static())) # unconstrained
+    # res = optimize(df, x0, Newton(;linesearch = LineSearches.Static())) # unconstrained, line search sometimes fails
+    # res = optimize(df, x0, Newton()) # unconstrained
     # obj = -Optim.minimum(res)
     # β, z = Optim.minimizer(res)
 
-    β, z = newton(x0, Γ, tp, Wp, t, W, n)
-    obj = fun([β, z])
+    x = activeset(x0, Γ, tp, Wp, t, W, n)
+    # x, _ = newtonβz(x0, Γ, tp, Wp, t, W, n)
+    β, z = x
+    obj = -fun(x)
 
     return obj, β, z
 end
