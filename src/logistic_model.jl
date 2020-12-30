@@ -8,10 +8,25 @@ using Plots
 const lx = [0.0, -Inf] # Lower bound does not affect Convex.jl version
 const ux = [0.1, logit(0.1)]
 
+# function activeset(x, Γ::Int64, tp::Int64, Wp::Int64, t::AbstractVector{Int64}, W::AbstractVector{Int64}, n::Int64;
+#     maxiters = 1000)
+
+#     xf = newton(x, Γ, tp, Wp, t, W, n)
+#     !is_feasible(xf) || return xf
+
+#     # fun = (z) -> log_likelihood([0.0, ], Γ, tp, Wp, t, W, n)
+
+# end
+
+function is_feasible(x)
+    return (lx[1] <= x[1] <= ux[1]) && (lx[2] <= x[2] <= ux[2])
+end
+
 function ipnewton(x, Γ::Int64, tp::Int64, Wp::Int64, t::AbstractVector{Int64}, W::AbstractVector{Int64}, n::Int64;
     maxiters = 1000)
     # interior point newton to do
     # see https://github.com/JuliaNLSolvers/Optim.jl/blob/master/src/multivariate/solvers/constrained/ipnewton/ipnewton.jl
+    # could also try bound constrained lagrangian method, see alg 17.4 in nocedal 
 
 end
 
