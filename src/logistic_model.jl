@@ -2,20 +2,28 @@ using Random, Distributions
 using StatsBase, StatsFuns
 using Optim, NLSolversBase, LineSearches, PositiveFactorizations
 import Convex, Mosek, MosekTools
+using StaticArrays
 using Plots
 
 const lx = [0.0, -Inf] # Lower bound does not affect Convex.jl version
 const ux = [0.1, logit(0.1)]
 
+function ipnewton(x, Γ::Int64, tp::Int64, Wp::Int64, t::AbstractVector{Int64}, W::AbstractVector{Int64}, n::Int64;
+    maxiters = 1000)
+    # interior point newton to do
+    # see https://github.com/JuliaNLSolvers/Optim.jl/blob/master/src/multivariate/solvers/constrained/ipnewton/ipnewton.jl
+
+end
+
 function newton(x, Γ::Int64, tp::Int64, Wp::Int64, t::AbstractVector{Int64}, W::AbstractVector{Int64}, n::Int64;
     maxiters = 1000)
     
-    g = zeros(2)
-    H = zeros(2, 2)
+    g = @MVector zeros(2) # to do: change this to non-memory allocating
+    H = @MMatrix zeros(2, 2)
     for i = 1:maxiters
         log_likelihood_grad!(g, x, Γ, tp, Wp, t, W, n)
         log_likelihood_hess!(H, x, Γ, tp, t, n)
-        F = PositiveFactorizations.cholesky!(Positive, H) # adjusted hessian
+        F = PositiveFactorizations.cholesky!(Positive, H) # adjusted hessian to deal with near positive definite matrices
         x = x - F\g
 
         if convergence_test(x, g, H)
@@ -69,14 +77,14 @@ function log_likelihood(x, Γ::Int64, tp::Int64, Wp::Int64, t::AbstractVector{In
     return f
 end
 
-function log_likelihood_grad_scalar!(g::Vector{Float64}, β::Float64, z::Float64, Γ::Int64, t::Int64, W::Int64, n::Int64)
+function log_likelihood_grad_scalar!(g, β::Float64, z::Float64, Γ::Int64, t::Int64, W::Int64, n::Int64)
     tΓ, coeff = f_coeff(β, z, Γ, t)
     sigd1 = logistic(coeff)
     g[1] += -W * tΓ + n * sigd1 * tΓ
     g[2] += -W + n * sigd1
 end
 
-function log_likelihood_grad!(g::Vector{Float64}, x::Vector{Float64}, Γ::Int64, tp::Int64, Wp::Int64, t::AbstractVector{Int64}, W::AbstractVector{Int64}, n::Int64)
+function log_likelihood_grad!(g, x, Γ::Int64, tp::Int64, Wp::Int64, t::AbstractVector{Int64}, W::AbstractVector{Int64}, n::Int64)
     β, z = x[1], x[2]
     g[1] = 0.0
     g[2] = 0.0
@@ -84,9 +92,10 @@ function log_likelihood_grad!(g::Vector{Float64}, x::Vector{Float64}, Γ::Int64,
         log_likelihood_grad_scalar!(g, β, z, Γ, t[i], W[i], n)
     end
     log_likelihood_grad_scalar!(g, β, z, Γ, tp, Wp, n)
+    # println(g)
 end
 
-function log_likelihood_hess_scalar!(h::Array{Float64}, β::Float64, z::Float64, Γ::Int64, t::Int64, n::Int64)
+function log_likelihood_hess_scalar!(h, β::Float64, z::Float64, Γ::Int64, t::Int64, n::Int64)
     tΓ, coeff = f_coeff(β, z, Γ, t)
     sigd2 = logistic(coeff) * logistic(-coeff)
     h[1, 1] += n * sigd2 * tΓ^2
@@ -95,7 +104,7 @@ function log_likelihood_hess_scalar!(h::Array{Float64}, β::Float64, z::Float64,
     h[2, 2] += n * sigd2
 end
 
-function log_likelihood_hess!(h::Array{Float64}, x::Vector{Float64}, Γ::Int64, tp::Int64, t::AbstractVector{Int64}, n::Int64)
+function log_likelihood_hess!(h, x, Γ::Int64, tp::Int64, t::AbstractVector{Int64}, n::Int64)
     β, z = x[1], x[2]
     h[1, 1] = 0.0
     h[1, 2] = 0.0
@@ -105,6 +114,7 @@ function log_likelihood_hess!(h::Array{Float64}, x::Vector{Float64}, Γ::Int64, 
     end
     log_likelihood_hess_scalar!(h, β, z, Γ, tp, n)
     h[2, 1] = h[1, 2]
+    # println(h)
 end
 
 function log_likelihood_hess_chol(h::Array{Float64}, x::Vector{Float64}, Γ::Int64, tp::Int64, t::AbstractVector{Int64}, n::Int64)
@@ -118,29 +128,30 @@ end
 function solve_logistic_Γ_subproblem_optim(β0::Float64, z0::Float64, Γ::Int64, tp::Int64, Wp::Int64, t::AbstractVector{Int64}, W::AbstractVector{Int64}, n::Int64)
     
     # x0 = [β0, z0]
-    x0 = [0.01, logit(0.01)] # using warm start points fails due to not being in interior
+    x0 = @MVector [β0, z0]
+    # x0 = [0.01, logit(0.01)] # using warm start points fails due to not being in interior
     
     fun = (x) -> log_likelihood(x, Γ, tp, Wp, t, W, n)
     fun_grad! = (g, x) -> log_likelihood_grad!(g, x, Γ, tp, Wp, t, W, n)
     fun_hess! = (h, x) -> log_likelihood_hess!(h, x, Γ, tp, t, n)
     
     if Γ >= tp # so all tΓ are 0, just use standard MLE
-        β = 0.0
+        β = 0.0 # unindentifiable 
         z = logit((sum(W) + Wp) / (n * (length(W) + 1)))
         obj = fun([β, z])
         return obj, β, z
     end
 
-    df = TwiceDifferentiable(fun, fun_grad!, fun_hess!, x0)
-    dfc = TwiceDifferentiableConstraints(lx, ux)
+    # df = TwiceDifferentiable(fun, fun_grad!, fun_hess!, x0)
+    # dfc = TwiceDifferentiableConstraints(lx, ux)
     
-    res = optimize(df, dfc, x0, IPNewton())
-    # res = optimize(df, x0, Newton()) # unconstrained
-    obj = -Optim.minimum(res)
-    β, z = Optim.minimizer(res)
+    # res = optimize(df, dfc, x0, IPNewton())
+    # res = optimize(df, x0, Newton(;linesearch = LineSearches.Static())) # unconstrained
+    # obj = -Optim.minimum(res)
+    # β, z = Optim.minimizer(res)
 
-    # β, z = newton(x0, Γ, tp, Wp, t, W, n)
-    # obj = fun([β, z])
+    β, z = newton(x0, Γ, tp, Wp, t, W, n)
+    obj = fun([β, z])
 
     return obj, β, z
 end
