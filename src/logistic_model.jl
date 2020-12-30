@@ -1,13 +1,34 @@
 using Random, Distributions
 using StatsBase, StatsFuns
-using Optim, NLSolversBase, LineSearches
+using Optim, NLSolversBase, LineSearches, PositiveFactorizations
 import Convex, Mosek, MosekTools
 using Plots
 
 const lx = [0.0, -Inf] # Lower bound does not affect Convex.jl version
 const ux = [0.1, logit(0.1)]
 
-### Optim
+function newton(x, Γ::Int64, tp::Int64, Wp::Int64, t::AbstractVector{Int64}, W::AbstractVector{Int64}, n::Int64;
+    maxiters = 1000)
+    
+    g = zeros(2)
+    H = zeros(2, 2)
+    for i = 1:maxiters
+        log_likelihood_grad!(g, x, Γ, tp, Wp, t, W, n)
+        log_likelihood_hess!(H, x, Γ, tp, t, n)
+        F = PositiveFactorizations.cholesky!(Positive, H) # adjusted hessian
+        x = x - F\g
+
+        if convergence_test(x, g, H)
+            break
+        end
+    end
+    return x
+end
+
+function convergence_test(x, g, H, tol=1e-3)
+    return maximum(abs.(g)) <= tol
+end
+
 function f_coeff(β, z, Γ::Int64, t::Int64)
     tΓ = max(0, t - Γ)
     return tΓ, β * tΓ  + z
@@ -114,10 +135,12 @@ function solve_logistic_Γ_subproblem_optim(β0::Float64, z0::Float64, Γ::Int64
     dfc = TwiceDifferentiableConstraints(lx, ux)
     
     res = optimize(df, dfc, x0, IPNewton())
-    # res = optimize(df, x0, Newton(;linesearch = LineSearches.Static()))
-    # res = optimize(fun, fun_grad!, lx, ux, x0, Fminbox(GradientDescent())) # this is much slower compared to Newton
-    obj::Float64 = -Optim.minimum(res)
-    β::Float64, z::Float64 = Optim.minimizer(res)
+    # res = optimize(df, x0, Newton()) # unconstrained
+    obj = -Optim.minimum(res)
+    β, z = Optim.minimizer(res)
+
+    # β, z = newton(x0, Γ, tp, Wp, t, W, n)
+    # obj = fun([β, z])
 
     return obj, β, z
 end
