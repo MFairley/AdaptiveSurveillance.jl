@@ -20,11 +20,15 @@ function newton(x, Γ::Int64, tp::Int64, Wp::Int64, t::AbstractVector{Int64}, W:
     
     g = @MVector zeros(2) # to do: change this to non-memory allocating
     H = @MMatrix zeros(2, 2)
+    # can probably make non-allocating by using SVector from StaticArrays and changing grad and hess to not be in place
+    # StaticArrays lets you do usual linear algebra operations otherwise will need to manually implement those oeprations to prevent
+    # memory allocation
+    # https://github.com/JuliaArrays/StaticArrays.jl
     for i = 1:maxiters
         log_likelihood_grad!(g, x, Γ, tp, Wp, t, W, n)
         log_likelihood_hess!(H, x, Γ, tp, t, n)
-        F = PositiveFactorizations.cholesky!(Positive, H) # adjusted hessian to deal with near positive definite matrices
-        x = x - F\g
+        # F = PositiveFactorizations.cholesky!(Positive, H) # adjusted hessian to deal with near positive definite matrices
+        x = x - H\g
 
         if convergence_test(x, g, H)
             break
