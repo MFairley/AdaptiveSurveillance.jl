@@ -49,7 +49,7 @@ function activeset(x0, Γ::Int64, tp::Int64, Wp::Int64, t::AbstractVector{Int64}
     !is_kkt(x, g) || return x
     
     # u, u -< only option left
-    println("6")
+    # println("6")
     return ux
 end
 
