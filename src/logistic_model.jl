@@ -3,6 +3,8 @@ using StatsBase, StatsFuns
 using Optim, NLSolversBase, LineSearches, PositiveFactorizations
 import Convex, Mosek, MosekTools
 using StaticArrays
+using FastClosures
+using LinearAlgebra
 using Plots
 
 const lx = [0.0, -Inf] # Lower bound does not affect Convex.jl version
@@ -18,27 +20,35 @@ function activeset(x0, Γ::Int64, tp::Int64, Wp::Int64, t::AbstractVector{Int64}
 
     # free, free -> primal feasible? dual feasible?
     x, g = newtonβz(x0, Γ, tp, Wp, t, W, n)
+    # println("1")
+    # println(x)
+    # println(g)
     !is_kkt(x, g) || return x
 
     # free, u
     x, g = newtonβ([x0[1], ux[2]], Γ, tp, Wp, t, W, n)
+    println("2")
     !is_kkt(x, g) || return x
 
     # l, free
     x, g = newtonz([0.0, x0[2]], Γ, tp, Wp, t, W, n)
+    println("3")
     !is_kkt(x, g) || return x
 
     # l, u <- fixed
     x = [0.0, ux[2]]
     g = zeros(2)
     log_likelihood_grad!(g, x, Γ, tp, Wp, t, W, n)
+    println("4")
     !is_kkt(x, g) || return x
 
     # u, free
     x, g = newtonz([ux[1], x0[2]], Γ, tp, Wp, t, W, n)
+    println("5")
     !is_kkt(x, g) || return x
     
     # u, u -< only option left
+    println("6")
     return ux
 end
 
@@ -110,7 +120,7 @@ function newtonz(x, Γ::Int64, tp::Int64, Wp::Int64, t::AbstractVector{Int64}, W
 end
 
 function newtonβz(x, Γ::Int64, tp::Int64, Wp::Int64, t::AbstractVector{Int64}, W::AbstractVector{Int64}, n::Int64;
-    maxiters = 1000)
+    maxiters = 10, α0=1.0)
 
     g = zeros(2) # to do: change this to non-memory allocating
     H = zeros(2, 2)
@@ -122,7 +132,18 @@ function newtonβz(x, Γ::Int64, tp::Int64, Wp::Int64, t::AbstractVector{Int64},
         log_likelihood_grad!(g, x, Γ, tp, Wp, t, W, n)
         log_likelihood_hess!(H, x, Γ, tp, t, n)
         F = PositiveFactorizations.cholesky!(Positive, H) # adjusted hessian to deal with near positive definite matrices
-        x = x - F\g
+        s = F\g # search direction
+
+        ϕ = @closure (α) -> log_likelihood(x - α * s, Γ, tp, Wp, t, W, n)
+        function dϕ(α) 
+            gα = zeros(2)
+            log_likelihood_grad!(gα, x - α * s, Γ, tp, Wp, t, W, n)
+            dot(s, -gα)
+        end
+        ϕdϕ = @closure (α) -> (ϕ(α), dϕ(α))
+        α, _ = BackTracking()(ϕ, dϕ, ϕdϕ, α0, ϕ(0.0), dϕ(0.0))
+
+        x = x - α * s
 
         if convergence_test(x, g, H)
             break
@@ -131,7 +152,7 @@ function newtonβz(x, Γ::Int64, tp::Int64, Wp::Int64, t::AbstractVector{Int64},
     return x, g
 end
 
-function convergence_test(x, g, H, tol=1e-3)
+function convergence_test(x, g, H, tol=1e-2)
     return maximum(abs.(g)) <= tol
 end
 
@@ -223,10 +244,25 @@ function log_likelihood_hess_chol(h::Array{Float64}, x::Vector{Float64}, Γ::Int
     return L
 end
 
+function solve_logistic_Γ_subproblem(β0::Float64, z0::Float64, Γ::Int64, tp::Int64, Wp::Int64, t::AbstractVector{Int64}, W::AbstractVector{Int64}, n::Int64)
+    x0 = [0.01, logit(0.01)]
+
+    if Γ >= tp # so all tΓ are 0, just use standard MLE
+        β = 0.0 # unindentifiable 
+        z = logit((sum(W) + Wp) / (n * (length(W) + 1))) # should set a constraint on this
+        obj = -log_likelihood([β, z], Γ, tp, Wp, t, W, n)
+        return obj, β, z
+    end
+
+    x = activeset(x0, Γ, tp, Wp, t, W, n)
+    # x, _ = newtonβz(x0, Γ, tp, Wp, t, W, n)
+    β, z = x
+    obj = -log_likelihood(x, Γ, tp, Wp, t, W, n)
+
+    return obj, β, z
+end
+
 function solve_logistic_Γ_subproblem_optim(β0::Float64, z0::Float64, Γ::Int64, tp::Int64, Wp::Int64, t::AbstractVector{Int64}, W::AbstractVector{Int64}, n::Int64)
-    
-    # x0 = [β0, z0]
-    # x0 = @MVector [β0, z0]
     x0 = [0.01, logit(0.01)] # using warm start points fails due to not being in interior
     
     fun = (x) -> log_likelihood(x, Γ, tp, Wp, t, W, n)
@@ -236,7 +272,7 @@ function solve_logistic_Γ_subproblem_optim(β0::Float64, z0::Float64, Γ::Int64
     if Γ >= tp # so all tΓ are 0, just use standard MLE
         β = 0.0 # unindentifiable 
         z = logit((sum(W) + Wp) / (n * (length(W) + 1))) # should set a constraint on this
-        obj = fun([β, z])
+        obj = -fun([β, z])
         return obj, β, z
     end
 
@@ -244,15 +280,10 @@ function solve_logistic_Γ_subproblem_optim(β0::Float64, z0::Float64, Γ::Int64
     dfc = TwiceDifferentiableConstraints(lx, ux)
     
     # res = optimize(df, dfc, x0, IPNewton())
-    # res = optimize(df, x0, Newton(;linesearch = LineSearches.Static())) # unconstrained, line search sometimes fails
+    res = optimize(df, x0, Newton(;linesearch = LineSearches.BackTracking())) # unconstrained, line search sometimes fails
     # res = optimize(df, x0, Newton()) # unconstrained
-    # obj = -Optim.minimum(res)
-    # β, z = Optim.minimizer(res)
-
-    x = activeset(x0, Γ, tp, Wp, t, W, n)
-    # x, _ = newtonβz(x0, Γ, tp, Wp, t, W, n)
-    β, z = x
-    obj = -fun(x)
+    obj = -Optim.minimum(res)
+    β, z = Optim.minimizer(res)
 
     return obj, β, z
 end
