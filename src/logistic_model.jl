@@ -7,13 +7,7 @@ using FastClosures
 using LinearAlgebra
 using Plots
 
-const lx = [0.0, -Inf] # Lower bound does not affect Convex.jl version
 const ux = [0.1, logit(0.1)]
-
-# options:
-# 1) projected newtons method - need further references to understand
-# 2) active set method - easy to understand and robust but annoying to code
-# 3) interior point - complex to implement, numerical issues
 
 function activeset(x0, Γ::Int64, tp::Int64, Wp::Int64, t::AbstractVector{Int64}, W::AbstractVector{Int64}, n::Int64;
     maxiters = 1000)
@@ -179,19 +173,19 @@ function convergence_test(x, g, H, tol=1e-3)
     return maximum(abs.(g)) <= tol
 end
 
+### Logistic Growth Model Equations
 function f_coeff(β, z, Γ::Int64, t::Int64)
     tΓ = max(0, t - Γ)
     return tΓ, β * tΓ  + z
 end
 
-function logistic_prevalance(β::Float64, z::Float64, Γ::Int64, tp::Int64)
-    _, coeff = f_coeff(β, z, Γ, tp)
+function logistic_prevalance(β::Float64, z::Float64, Γ::Int64, t::Int64)
+    _, coeff = f_coeff(β, z, Γ, t)
     return logistic(coeff)
 end
 
 function normalized_log_likelihood_scalar(β::Float64, z::Float64, Γ::Int64, t::Int64, W::Int64, n::Int64)
-    _, coeff = f_coeff(β, z, Γ, t)
-    p = logistic(coeff)
+    p = logistic_prevalance(β, z, Γ, t)
     return logpdf(Binomial(n, p), W)
 end
 
@@ -219,55 +213,46 @@ function log_likelihood(x, Γ::Int64, tp::Int64, Wp::Int64, t::AbstractVector{In
     return f
 end
 
-function log_likelihood_grad_scalar!(g, β::Float64, z::Float64, Γ::Int64, t::Int64, W::Int64, n::Int64)
+function log_likelihood_grad_scalar(β::Float64, z::Float64, Γ::Int64, t::Int64, W::Int64, n::Int64)
     tΓ, coeff = f_coeff(β, z, Γ, t)
     sigd1 = logistic(coeff)
-    g[1] += -W * tΓ + n * sigd1 * tΓ
-    g[2] += -W + n * sigd1
+    g1 = (-W + n * sigd1) * tΓ
+    g2 =  -W + n * sigd1
+    return @SVector [g1, g2]
 end
 
-function log_likelihood_grad!(g, x, Γ::Int64, tp::Int64, Wp::Int64, t::AbstractVector{Int64}, W::AbstractVector{Int64}, n::Int64)
+function log_likelihood_grad(x, Γ::Int64, tp::Int64, Wp::Int64, t::AbstractVector{Int64}, W::AbstractVector{Int64}, n::Int64)
     β, z = x[1], x[2]
-    g[1] = 0.0
-    g[2] = 0.0
+    g = @SVector zeros(2)
     for i = 1:length(W)
-        log_likelihood_grad_scalar!(g, β, z, Γ, t[i], W[i], n)
+        g = g + log_likelihood_grad_scalar(β, z, Γ, t[i], W[i], n)
     end
-    log_likelihood_grad_scalar!(g, β, z, Γ, tp, Wp, n)
-    # println(g)
+    g = g + log_likelihood_grad_scalar(β, z, Γ, tp, Wp, n)
+    return g
 end
 
-function log_likelihood_hess_scalar!(h, β::Float64, z::Float64, Γ::Int64, t::Int64, n::Int64)
+function log_likelihood_hess_scalar(β::Float64, z::Float64, Γ::Int64, t::Int64, n::Int64)
     tΓ, coeff = f_coeff(β, z, Γ, t)
     sigd2 = logistic(coeff) * logistic(-coeff)
-    h[1, 1] += n * sigd2 * tΓ^2
-    h[1, 2] += n * sigd2 * tΓ
-    # h[2, 1] += n * sigd2 * tΓ
-    h[2, 2] += n * sigd2
+    h11 = n * sigd2 * tΓ^2
+    h12 = n * sigd2 * tΓ
+    h22 = n * sigd2
+    return @SMatrix [h11 h12; h12 h22]
 end
 
-function log_likelihood_hess!(h, x, Γ::Int64, tp::Int64, t::AbstractVector{Int64}, n::Int64)
+function log_likelihood_hess(x, Γ::Int64, tp::Int64, t::AbstractVector{Int64}, n::Int64)
     β, z = x[1], x[2]
-    h[1, 1] = 0.0
-    h[1, 2] = 0.0
-    h[2, 2] = 0.0
+    H = @SMatrix zeros(2, 2)
     for i = 1:length(t)
-        log_likelihood_hess_scalar!(h, β, z, Γ, t[i], n)
+        H = H + log_likelihood_hess_scalar(β, z, Γ, t[i], n)
     end
-    log_likelihood_hess_scalar!(h, β, z, Γ, tp, n)
-    h[2, 1] = h[1, 2]
-    # println(h)
+    H = H + log_likelihood_hess_scalar(β, z, Γ, tp, n)
+    return H
 end
-
-function log_likelihood_hess_chol(h::Array{Float64}, x::Vector{Float64}, Γ::Int64, tp::Int64, t::AbstractVector{Int64}, n::Int64)
-    L = zeros(2, 2)
-    L[1, 1] = sqrt(h[1, 1])
-    L[2, 1] = h[1, 2] / L[1, 1]
-    L[2, 2] = sqrt(h[2, 2] - L[2, 1]^2)
-    return L
-end
+###
 
 function solve_logistic_Γ_subproblem(β0::Float64, z0::Float64, Γ::Int64, tp::Int64, Wp::Int64, t::AbstractVector{Int64}, W::AbstractVector{Int64}, n::Int64)
+    
     x0 = [0.01, logit(0.01)]
 
     if Γ >= tp # so all tΓ are 0, just use standard MLE
@@ -285,40 +270,14 @@ function solve_logistic_Γ_subproblem(β0::Float64, z0::Float64, Γ::Int64, tp::
     return obj, β, z
 end
 
-function solve_logistic_Γ_subproblem_optim(β0::Float64, z0::Float64, Γ::Int64, tp::Int64, Wp::Int64, t::AbstractVector{Int64}, W::AbstractVector{Int64}, n::Int64)
-    x0 = [0.01, logit(0.01)] # using warm start points fails due to not being in interior
-    
-    fun = (x) -> log_likelihood(x, Γ, tp, Wp, t, W, n)
-    fun_grad! = (g, x) -> log_likelihood_grad!(g, x, Γ, tp, Wp, t, W, n)
-    fun_hess! = (h, x) -> log_likelihood_hess!(h, x, Γ, tp, t, n)
-    
-    if Γ >= tp # so all tΓ are 0, just use standard MLE
-        β = 0.0 # unindentifiable 
-        z = logit((sum(W) + Wp) / (n * (length(W) + 1))) # should set a constraint on this
-        obj = -fun([β, z])
-        return obj, β, z
-    end
-
-    df = TwiceDifferentiable(fun, fun_grad!, fun_hess!, x0)
-    dfc = TwiceDifferentiableConstraints(lx, ux)
-    
-    res = optimize(df, dfc, x0, IPNewton())
-    # res = optimize(df, x0, Newton(;linesearch = LineSearches.BackTracking())) # unconstrained, line search sometimes fails
-    # res = optimize(df, x0, Newton()) # unconstrained
-    obj = -Optim.minimum(res)
-    β, z = Optim.minimizer(res)
-
-    return obj, β, z
-end
-
-function solve_logistic_optim(tp::Int64, Wp::Int64, t::AbstractVector{Int64}, W::AbstractVector{Int64}, n::Int64,
+function solve_logistic(tp::Int64, Wp::Int64, t::AbstractVector{Int64}, W::AbstractVector{Int64}, n::Int64,
     β0::Float64 = 0.01, z0::Float64 = 0.0)
     max_obj = -Inf64
     βs = 0.0
     zs = 0.0
     Γs = 0
     for Γ = 0:tp # type instability here with Threads.@threads
-        obj, β, z = solve_logistic_Γ_subproblem_optim(β0, z0, Γ, tp, Wp, t, W, n)
+        obj, β, z = solve_logistic_Γ_subproblem(β0, z0, Γ, tp, Wp, t, W, n)
         β0, z0 = β, z
         if obj >= max_obj
             max_obj = obj
@@ -335,7 +294,7 @@ function profile_log_likelihood(tp::Int64, t::AbstractVector{Int64}, W::Abstract
     @assert all(t .>= 0)
     lp = zeros(n + 1)
     Threads.@threads for i = 0:n
-        _, β, z, Γ = solve_logistic_optim(tp, i, t, W, n, β0, z0)
+        _, β, z, Γ = solve_logistic(tp, i, t, W, n, β0, z0)
         β0, z0 = β, z
         lp[i+1] = normalized_log_likelihood(β, z, Γ, tp, i, t, W, n)
     end
