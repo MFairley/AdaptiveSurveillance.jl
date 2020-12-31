@@ -62,7 +62,7 @@ function lagrange_multipliers(x, g)
 end
 
 function newtonβ(x, Γ::Int64, tp::Int64, Wp::Int64, t::AbstractVector{Int64}, W::AbstractVector{Int64}, n::Int64;
-    maxiters = 1000, α0=1.0, hesstol=1e-6)
+    maxiters = 100, α0=1.0, hesstol=1e-6)
 
     for i = 1:maxiters
         # Convergence Test
@@ -88,7 +88,7 @@ function newtonβ(x, Γ::Int64, tp::Int64, Wp::Int64, t::AbstractVector{Int64}, 
 end
 
 function newtonz(x, Γ::Int64, tp::Int64, Wp::Int64, t::AbstractVector{Int64}, W::AbstractVector{Int64}, n::Int64;
-    maxiters = 1000, α0=1.0, hesstol=1e-6)
+    maxiters = 100, α0=1.0, hesstol=1e-6)
 
     for i = 1:maxiters
         # Convergence Test
@@ -114,7 +114,7 @@ function newtonz(x, Γ::Int64, tp::Int64, Wp::Int64, t::AbstractVector{Int64}, W
 end
 
 function newtonβz(x, Γ::Int64, tp::Int64, Wp::Int64, t::AbstractVector{Int64}, W::AbstractVector{Int64}, n::Int64;
-    maxiters = 10, α0=1.0)
+    maxiters = 100, α0=1.0)
 
     g = log_likelihood_grad(x, Γ, tp, Wp, t, W, n)
     Hp = zeros(2,2)
