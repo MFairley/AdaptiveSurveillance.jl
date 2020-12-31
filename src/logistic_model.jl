@@ -7,7 +7,7 @@ using FastClosures
 using LinearAlgebra
 using Plots
 
-const ux = [0.1, logit(0.1)] # upper bounds for β and z
+const ux = @SVector [0.1, logit(0.1)] # upper bounds for β and z
 const β0c = ux[1] / 10.0 # initial guess for β
 const z0c = ux[2] - 1.0 # initial guess for z
 
@@ -15,38 +15,30 @@ const z0c = ux[2] - 1.0 # initial guess for z
 function activeset(x0, Γ::Int64, tp::Int64, Wp::Int64, t::AbstractVector{Int64}, W::AbstractVector{Int64}, n::Int64;
     maxiters = 1000)
 
-    # free, free -> primal feasible? dual feasible?
+    # Free, Free
     x, g = newtonβz(x0, Γ, tp, Wp, t, W, n)
-    # println("1")
-    # println(x)
-    # println(g)
     !is_kkt(x, g) || return x
 
-    # free, u
-    x, g = newtonβ([x0[1], ux[2]], Γ, tp, Wp, t, W, n)
-    # println("2")
-    # println(g)
+    # Free, Upper
+    x0c = @SVector [x0[1], ux[2]]
+    x, g = newtonβ(x0c, Γ, tp, Wp, t, W, n)
     !is_kkt(x, g) || return x
 
-    # l, free
-    x, g = newtonz([0.0, x0[2]], Γ, tp, Wp, t, W, n)
-    # println("3")
+    # Lower, Free
+    x0c = @SVector [0.0, x0[2]]
+    x, g = newtonz(x0c, Γ, tp, Wp, t, W, n)
     !is_kkt(x, g) || return x
 
-    # l, u <- fixed
-    x = [0.0, ux[2]]
-    g = zeros(2)
-    log_likelihood_grad!(g, x, Γ, tp, Wp, t, W, n)
-    # println("4")
+    # Lower, Upper
+    x = @SVector [0.0, ux[2]]
+    g = log_likelihood_grad(x, Γ, tp, Wp, t, W, n)
     !is_kkt(x, g) || return x
 
-    # u, free
-    x, g = newtonz([ux[1], x0[2]], Γ, tp, Wp, t, W, n)
-    println("5")
+    # Upper, Free
+    x0c = @SVector [ux[1], x0[2]]
+    x, g = newtonz(x0c, Γ, tp, Wp, t, W, n)
     !is_kkt(x, g) || return x
     
-    # u, u -< only option left
-    # println("6")
     return ux
 end
 
@@ -59,120 +51,98 @@ function is_primal_feasible(x) # add a tolerance?
 end
 
 function is_dual_feasible(x, g)
-    all(lagrange_multipliers(x, g) .>= 0.0) # add a tolerance?
+    all(lagrange_multipliers(x, g) .>= 0.0)
 end
 
 function lagrange_multipliers(x, g)
     λ_βl = x[1] > 0.0 ? 0.0 : g[1]
     λ_βu = x[2] < ux[1] ? 0.0 : -g[1]
-    # @assert (λ_βl == 0.0) || (λ_βu == 0.0)
     λ_zu = x[2] < ux[2] ? 0.0 : -g[2]
-    return λ_βl, λ_βu, λ_zu
+    return @SVector [λ_βl, λ_βu, λ_zu]
 end
 
-# function ipnewton(x, Γ::Int64, tp::Int64, Wp::Int64, t::AbstractVector{Int64}, W::AbstractVector{Int64}, n::Int64;
-#     maxiters = 1000)
-#     # interior point newton to do
-#     # see https://github.com/JuliaNLSolvers/Optim.jl/blob/master/src/multivariate/solvers/constrained/ipnewton/ipnewton.jl
-
-# end
-
 function newtonβ(x, Γ::Int64, tp::Int64, Wp::Int64, t::AbstractVector{Int64}, W::AbstractVector{Int64}, n::Int64;
-    maxiters = 1000, α0=1.0)
+    maxiters = 1000, α0=1.0, hesstol=1e-6)
 
-    g = zeros(2)
-    H = zeros(2, 2)
     for i = 1:maxiters
-        log_likelihood_grad!(g, x, Γ, tp, Wp, t, W, n)
-        log_likelihood_hess!(H, x, Γ, tp, t, n)
-        if abs(H[1, 1]) < 1e-6
-            H[1, 1] += 1
-        end
-        s = H[1, 1] \ g[1]
+        # Convergence Test
+        g = log_likelihood_grad(x, Γ, tp, Wp, t, W, n)[1]
+        !convergence_test(x[1], g) || break
 
-        ϕ = @closure (α) -> log_likelihood([x[1] - α * s, x[2]], Γ, tp, Wp, t, W, n)
-        function dϕ(α) 
-            gα = zeros(2)
-            log_likelihood_grad!(gα, [x[1] - α * s, x[2]], Γ, tp, Wp, t, W, n)
-            s * - gα[1]
+        # Search Direction
+        h = log_likelihood_hess(x, Γ, tp, t, n)[1, 1]
+        if abs(h) < hesstol # Adjustment
+            h = h + 1.0
         end
-        ϕdϕ = @closure (α) -> (ϕ(α), dϕ(α))
+        s = h \ g
+
+        # Line Search
+        ϕ = @closure (α) -> log_likelihood(SVector{2,Float64}(x[1] - α * s, x[2]), Γ, tp, Wp, t, W, n)
+        dϕ = @closure (α) -> s * -log_likelihood_grad(SVector{2,Float64}(x[1] - α * s, x[2]), Γ, tp, Wp, t, W, n)[1]
+        ϕdϕ = @closure (α) -> (ϕ(α), dϕ(α))        
         α, _ = BackTracking()(ϕ, dϕ, ϕdϕ, α0, ϕ(0.0), dϕ(0.0))
 
-        x = [x[1] - α * s, x[2]]
-
-        if convergence_test(x[1], g[1], H[1, 1])
-            break
-        end
+        x = @SVector [x[1] - α * s, x[2]]
     end
-    return x, g
+    return x, log_likelihood_grad(x, Γ, tp, Wp, t, W, n)
 end
 
 function newtonz(x, Γ::Int64, tp::Int64, Wp::Int64, t::AbstractVector{Int64}, W::AbstractVector{Int64}, n::Int64;
-    maxiters = 1000, α0=1.0)
+    maxiters = 1000, α0=1.0, hesstol=1e-6)
 
-    g = zeros(2)
-    H = zeros(2, 2)
     for i = 1:maxiters
-        log_likelihood_grad!(g, x, Γ, tp, Wp, t, W, n)
-        log_likelihood_hess!(H, x, Γ, tp, t, n)
-        if abs(H[2, 2]) < 1e-6
-            H[2, 2] += 1
-        end
-        s = H[2, 2] \ g[2] # search direction
+        # Convergence Test
+        g = log_likelihood_grad(x, Γ, tp, Wp, t, W, n)[2]
+        !convergence_test(x[2], g) || break
 
-        ϕ = @closure (α) -> log_likelihood([x[1], x[2] - α * s], Γ, tp, Wp, t, W, n)
-        function dϕ(α) 
-            gα = zeros(2)
-            log_likelihood_grad!(gα, [x[1], x[2] - α * s], Γ, tp, Wp, t, W, n)
-            s * - gα[2]
+        # Search Direction
+        h = log_likelihood_hess(x, Γ, tp, t, n)[2, 2]
+        if abs(h) < hesstol # Adjustment
+            h = h + 1.0
         end
-        ϕdϕ = @closure (α) -> (ϕ(α), dϕ(α))
+        s = h \ g
+
+        # Line Search
+        ϕ = @closure (α) -> log_likelihood(SVector{2,Float64}(x[1], x[2] - α * s), Γ, tp, Wp, t, W, n)
+        dϕ = @closure (α) -> s * -log_likelihood_grad(SVector{2,Float64}(x[1], x[2] - α * s), Γ, tp, Wp, t, W, n)[2]
+        ϕdϕ = @closure (α) -> (ϕ(α), dϕ(α))        
         α, _ = BackTracking()(ϕ, dϕ, ϕdϕ, α0, ϕ(0.0), dϕ(0.0))
 
-        x = [x[1], x[2] - α * s]
-
-        if convergence_test(x[2], g[2], H[2, 2])
-            break
-        end
+        x = @SVector [x[1], x[2] - α * s]
     end
-    return x, g
+    return x, log_likelihood_grad(x, Γ, tp, Wp, t, W, n)
 end
 
 function newtonβz(x, Γ::Int64, tp::Int64, Wp::Int64, t::AbstractVector{Int64}, W::AbstractVector{Int64}, n::Int64;
     maxiters = 10, α0=1.0)
 
-    g = zeros(2) # to do: change this to non-memory allocating
-    H = zeros(2, 2)
-    # can probably make non-allocating by using SVector from StaticArrays and changing grad and hess to not be in place
-    # StaticArrays lets you do usual linear algebra operations otherwise will need to manually implement those oeprations to prevent
-    # memory allocation
-    # https://github.com/JuliaArrays/StaticArrays.jl
+    g = log_likelihood_grad(x, Γ, tp, Wp, t, W, n)
+    Hp = zeros(2,2)
     for i = 1:maxiters
-        log_likelihood_grad!(g, x, Γ, tp, Wp, t, W, n)
-        log_likelihood_hess!(H, x, Γ, tp, t, n)
-        F = PositiveFactorizations.cholesky!(Positive, H) # adjusted hessian to deal with near positive definite matrices
+        # Convergence Test
+        !convergence_test(x, g) || break
+        
+        # Search Direction
+        g = log_likelihood_grad(x, Γ, tp, Wp, t, W, n)
+        H = log_likelihood_hess(x, Γ, tp, t, n)
+        # this will cause memory allocation
+        Hp[:] .= H[:]
+        F = PositiveFactorizations.cholesky!(Positive, Hp) # adjusted hessian to deal with near positive definite matrices
         s = F\g # search direction
 
+        # Line Search
         ϕ = @closure (α) -> log_likelihood(x - α * s, Γ, tp, Wp, t, W, n)
-        function dϕ(α) 
-            gα = zeros(2)
-            log_likelihood_grad!(gα, x - α * s, Γ, tp, Wp, t, W, n)
-            dot(s, -gα)
-        end
-        ϕdϕ = @closure (α) -> (ϕ(α), dϕ(α))
+        dϕ = @closure (α) -> dot(s, -log_likelihood_grad(x - α * s, Γ, tp, Wp, t, W, n))
+        ϕdϕ = @closure (α) -> (ϕ(α), dϕ(α))        
         α, _ = BackTracking()(ϕ, dϕ, ϕdϕ, α0, ϕ(0.0), dϕ(0.0))
 
+        # Step
         x = x - α * s
-
-        if convergence_test(x, g, H) # should do the gradient of the new point here!, otherwise will do an extra iteration
-            break
-        end
     end
     return x, g
 end
 
-function convergence_test(x, g, H, tol=1e-3)
+function convergence_test(x, g, tol=1e-3)
     return maximum(abs.(g)) <= tol
 end
 
@@ -180,7 +150,7 @@ function solve_logistic_Γ_subproblem(Γ::Int64, tp::Int64, Wp::Int64, t::Abstra
     β0::Float64 = β0c, z0::Float64 = z0c)
 
     if Γ >= tp # so all tΓ are 0, just use standard MLE with constraint
-        β = 0.0 # unindentifiable
+        β = 0.0 # unindentifiable, assume a default value
         z = min(logit((sum(W) + Wp) / (n * (length(W) + 1))), ux[2])
         x = @SVector [β, z]
         obj = -log_likelihood(x, Γ, tp, Wp, t, W, n)
@@ -188,7 +158,7 @@ function solve_logistic_Γ_subproblem(Γ::Int64, tp::Int64, Wp::Int64, t::Abstra
     end
 
     x0 = @SVector [β0, z0]
-    x = x0#activeset(x0, Γ, tp, Wp, t, W, n)
+    x = activeset(x0, Γ, tp, Wp, t, W, n)
     obj = -log_likelihood(x, Γ, tp, Wp, t, W, n)
 
     return obj, x[1], x[2]
@@ -214,7 +184,7 @@ function solve_logistic(tp::Int64, Wp::Int64, t::AbstractVector{Int64}, W::Abstr
     zs = 0.0
     Γs = 0
     for Γ = 1:tp # type instability here with Threads.@threads
-        obj, β, z = solve_logistic_Γ_subproblem(β0, z0, Γ, tp, Wp, t, W, n)
+        obj, β, z = solve_logistic_Γ_subproblem(Γ, tp, Wp, t, W, n, β0, z0)
         # β0, z0 = β, z # warm start
         if obj >= max_obj
             max_obj = obj
