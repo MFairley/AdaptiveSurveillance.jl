@@ -30,7 +30,7 @@ end
 rng = MersenneTwister(1234)
 for i = 1:length(t)
     for Γ = 0:(i-1)
-        if rand(rng) >= 0.01 || (sum(max.(0, t[1:i] .- Γ)) == 0)
+        if rand(rng) >= 0.1 || (sum(max.(0, t[1:i] .- Γ)) == 0)
             # do a fraction of the tests for speed
             # beta value non-identifiable when sum(max.(0, t[1:i] .- Γ)) == 0
             continue
@@ -44,7 +44,7 @@ for i = 1:length(t)
         @test isapprox(βo, βc, atol=1e-2)
         @test isapprox(zo, zc, atol=1e-2)
 
-        println("i = $i, Γ = $Γ, tp = $tp, Wp = $tp")
+        # println("i = $i, Γ = $Γ, tp = $tp, Wp = $tp")
         obj, β, z = AdaptiveSurveillance.solve_logistic_Γ_subproblem(0.01, logit(0.01), Γ, tp, Wp, t[1:i], W[1:i], n)
         @test isapprox(obj, objc, rtol=0.15)
         @test isapprox(β, βc, atol=1e-2)

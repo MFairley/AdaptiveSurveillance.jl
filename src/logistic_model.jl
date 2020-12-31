@@ -27,19 +27,20 @@ function activeset(x0, Γ::Int64, tp::Int64, Wp::Int64, t::AbstractVector{Int64}
 
     # free, u
     x, g = newtonβ([x0[1], ux[2]], Γ, tp, Wp, t, W, n)
-    println("2")
+    # println("2")
+    # println(g)
     !is_kkt(x, g) || return x
 
     # l, free
     x, g = newtonz([0.0, x0[2]], Γ, tp, Wp, t, W, n)
-    println("3")
+    # println("3")
     !is_kkt(x, g) || return x
 
     # l, u <- fixed
     x = [0.0, ux[2]]
     g = zeros(2)
     log_likelihood_grad!(g, x, Γ, tp, Wp, t, W, n)
-    println("4")
+    # println("4")
     !is_kkt(x, g) || return x
 
     # u, free
@@ -68,7 +69,7 @@ function lagrange_multipliers(x, g)
     λ_βl = x[1] > 0.0 ? 0.0 : g[1]
     λ_βu = x[2] < ux[1] ? 0.0 : -g[1]
     # @assert (λ_βl == 0.0) || (λ_βu == 0.0)
-    λ_zu = x[2] < ux[2] ? 0.0 : g[2]
+    λ_zu = x[2] < ux[2] ? 0.0 : -g[2]
     return λ_βl, λ_βu, λ_zu
 end
 
@@ -80,7 +81,7 @@ end
 # end
 
 function newtonβ(x, Γ::Int64, tp::Int64, Wp::Int64, t::AbstractVector{Int64}, W::AbstractVector{Int64}, n::Int64;
-    maxiters = 1000)
+    maxiters = 1000, α0=1.0)
 
     g = zeros(2)
     H = zeros(2, 2)
@@ -90,7 +91,18 @@ function newtonβ(x, Γ::Int64, tp::Int64, Wp::Int64, t::AbstractVector{Int64}, 
         if abs(H[1, 1]) < 1e-6
             H[1, 1] += 1
         end
-        x = [x[1] - H[1, 1] \ g[1], x[2]]
+        s = H[1, 1] \ g[1]
+
+        ϕ = @closure (α) -> log_likelihood([x[1] - α * s, x[2]], Γ, tp, Wp, t, W, n)
+        function dϕ(α) 
+            gα = zeros(2)
+            log_likelihood_grad!(gα, [x[1] - α * s, x[2]], Γ, tp, Wp, t, W, n)
+            s * - gα[1]
+        end
+        ϕdϕ = @closure (α) -> (ϕ(α), dϕ(α))
+        α, _ = BackTracking()(ϕ, dϕ, ϕdϕ, α0, ϕ(0.0), dϕ(0.0))
+
+        x = [x[1] - α * s, x[2]]
 
         if convergence_test(x[1], g[1], H[1, 1])
             break
@@ -100,7 +112,7 @@ function newtonβ(x, Γ::Int64, tp::Int64, Wp::Int64, t::AbstractVector{Int64}, 
 end
 
 function newtonz(x, Γ::Int64, tp::Int64, Wp::Int64, t::AbstractVector{Int64}, W::AbstractVector{Int64}, n::Int64;
-    maxiters = 1000)
+    maxiters = 1000, α0=1.0)
 
     g = zeros(2)
     H = zeros(2, 2)
@@ -110,7 +122,18 @@ function newtonz(x, Γ::Int64, tp::Int64, Wp::Int64, t::AbstractVector{Int64}, W
         if abs(H[2, 2]) < 1e-6
             H[2, 2] += 1
         end
-        x = [x[1], x[2] - H[2, 2] \ g[2]]
+        s = H[2, 2] \ g[2] # search direction
+
+        ϕ = @closure (α) -> log_likelihood([x[1], x[2] - α * s], Γ, tp, Wp, t, W, n)
+        function dϕ(α) 
+            gα = zeros(2)
+            log_likelihood_grad!(gα, [x[1], x[2] - α * s], Γ, tp, Wp, t, W, n)
+            s * - gα[2]
+        end
+        ϕdϕ = @closure (α) -> (ϕ(α), dϕ(α))
+        α, _ = BackTracking()(ϕ, dϕ, ϕdϕ, α0, ϕ(0.0), dϕ(0.0))
+
+        x = [x[1], x[2] - α * s]
 
         if convergence_test(x[2], g[2], H[2, 2])
             break
@@ -145,14 +168,14 @@ function newtonβz(x, Γ::Int64, tp::Int64, Wp::Int64, t::AbstractVector{Int64},
 
         x = x - α * s
 
-        if convergence_test(x, g, H)
+        if convergence_test(x, g, H) # should do the gradient of the new point here!, otherwise will do an extra iteration
             break
         end
     end
     return x, g
 end
 
-function convergence_test(x, g, H, tol=1e-2)
+function convergence_test(x, g, H, tol=1e-3)
     return maximum(abs.(g)) <= tol
 end
 
@@ -233,7 +256,7 @@ function log_likelihood_hess!(h, x, Γ::Int64, tp::Int64, t::AbstractVector{Int6
     end
     log_likelihood_hess_scalar!(h, β, z, Γ, tp, n)
     h[2, 1] = h[1, 2]
-    println(h)
+    # println(h)
 end
 
 function log_likelihood_hess_chol(h::Array{Float64}, x::Vector{Float64}, Γ::Int64, tp::Int64, t::AbstractVector{Int64}, n::Int64)
@@ -279,8 +302,8 @@ function solve_logistic_Γ_subproblem_optim(β0::Float64, z0::Float64, Γ::Int64
     df = TwiceDifferentiable(fun, fun_grad!, fun_hess!, x0)
     dfc = TwiceDifferentiableConstraints(lx, ux)
     
-    # res = optimize(df, dfc, x0, IPNewton())
-    res = optimize(df, x0, Newton(;linesearch = LineSearches.BackTracking())) # unconstrained, line search sometimes fails
+    res = optimize(df, dfc, x0, IPNewton())
+    # res = optimize(df, x0, Newton(;linesearch = LineSearches.BackTracking())) # unconstrained, line search sometimes fails
     # res = optimize(df, x0, Newton()) # unconstrained
     obj = -Optim.minimum(res)
     β, z = Optim.minimizer(res)
