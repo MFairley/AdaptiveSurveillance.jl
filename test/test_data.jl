@@ -30,4 +30,4 @@ const p0_true_L = ones(Float64, L) * p0_true
 const Γ_true_L = ones(Int64, L) * typemax(Int64)
 Γ_true_L[1] = 1
 const maxiters = 150
-const α = 10000 # the higher, the less false positives
+const α = 1000 # the higher, the less false positives

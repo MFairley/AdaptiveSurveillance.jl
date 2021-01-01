@@ -30,4 +30,4 @@ const K = 2
 atd_constant = alarm_time_distribution(K, obs, unobs, astate, tstate_constant)
 atd_random = alarm_time_distribution(K, obs, unobs, astate, tstate_random)
 atd_thompson = alarm_time_distribution(K, obs, unobs, astate, tstate_thompson)
-# @time atd_evsi = alarm_time_distribution(K, obs, unobs, astate, tstate_evsi)
+@time atd_evsi = alarm_time_distribution(K, obs, unobs, astate, tstate_evsi)

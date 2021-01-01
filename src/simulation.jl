@@ -88,7 +88,7 @@ function write_alarm_time_distribution(obs, unobs, alarm_times, filename)
     p_sequence = zeros(size(alarm_times, 1), obs.L)
     for l = 1:obs.L
         for t = 1:size(alarm_times, 1)
-            p_sequence[t, l] = unobs.p(t, unobs.Γ[l])
+            p_sequence[t, l] = logistic_prevalance(unobs.β[l], logit(unobs.p0[l]), unobs.Γ[l], t)
         end
     end
     writedlm(filename, hcat(p_sequence, alarm_times), ",")
