@@ -114,7 +114,7 @@ function newtonz(x, Γ::Int64, tp::Int64, Wp::Int64, t::AbstractVector{Int64}, W
 end
 
 function newtonβz(x, Γ::Int64, tp::Int64, Wp::Int64, t::AbstractVector{Int64}, W::AbstractVector{Int64}, n::Int64;
-    maxiters = 10, α0=1.0)
+    maxiters = 100, α0=1.0)
 
     for i = 1:maxiters
         # Convergence Test
@@ -123,20 +123,14 @@ function newtonβz(x, Γ::Int64, tp::Int64, Wp::Int64, t::AbstractVector{Int64},
         
         # Search Direction
         H = log_likelihood_hess(x, Γ, tp, t, n)
-        println(H)
-        # s = H \ g
-        # s = modified_hessian_inv(H) * g
-        Hp = zeros(2,2)
-        Hp[:] .= H[:]
-        F = PositiveFactorizations.cholesky!(Positive, Hp) # adjusted hessian to deal with near positive definite matrices
-        s = F\g # search direction
+        s = modified_hessian_inv(H) * g
 
         # Line Search
         ϕ = @closure (α) -> log_likelihood(x - α * s, Γ, tp, Wp, t, W, n)
         dϕ = @closure (α) -> dot(s, -log_likelihood_grad(x - α * s, Γ, tp, Wp, t, W, n))
         ϕdϕ = @closure (α) -> (ϕ(α), dϕ(α))        
         α, _ = BackTracking()(ϕ, dϕ, ϕdϕ, α0, ϕ(0.0), dϕ(0.0))
-        α = 1.0
+
         # Step
         x = x - α * s
     end
