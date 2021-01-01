@@ -7,7 +7,7 @@ using FastClosures
 using LinearAlgebra
 using Plots
 
-const ux = @SVector [0.1, logit(0.1)] # upper bounds for β and z
+const ux = @SVector [1.0, logit(0.5)] # upper bounds for β and z
 const β0c = ux[1] / 10.0 # initial guess for β
 const z0c = ux[2] - 1.0 # initial guess for z
 
@@ -114,18 +114,19 @@ function newtonz(x, Γ::Int64, tp::Int64, Wp::Int64, t::AbstractVector{Int64}, W
 end
 
 function newtonβz(x, Γ::Int64, tp::Int64, Wp::Int64, t::AbstractVector{Int64}, W::AbstractVector{Int64}, n::Int64;
-    maxiters = 100, α0=1.0)
+    maxiters = 10, α0=1.0)
 
-    g = log_likelihood_grad(x, Γ, tp, Wp, t, W, n)
-    Hp = zeros(2,2)
     for i = 1:maxiters
         # Convergence Test
+        g = log_likelihood_grad(x, Γ, tp, Wp, t, W, n)
         !convergence_test(x, g) || break
         
         # Search Direction
-        g = log_likelihood_grad(x, Γ, tp, Wp, t, W, n)
         H = log_likelihood_hess(x, Γ, tp, t, n)
-        # this will cause memory allocation
+        println(H)
+        # s = H \ g
+        # s = modified_hessian_inv(H) * g
+        Hp = zeros(2,2)
         Hp[:] .= H[:]
         F = PositiveFactorizations.cholesky!(Positive, Hp) # adjusted hessian to deal with near positive definite matrices
         s = F\g # search direction
@@ -135,11 +136,19 @@ function newtonβz(x, Γ::Int64, tp::Int64, Wp::Int64, t::AbstractVector{Int64},
         dϕ = @closure (α) -> dot(s, -log_likelihood_grad(x - α * s, Γ, tp, Wp, t, W, n))
         ϕdϕ = @closure (α) -> (ϕ(α), dϕ(α))        
         α, _ = BackTracking()(ϕ, dϕ, ϕdϕ, α0, ϕ(0.0), dϕ(0.0))
-
+        α = 1.0
         # Step
         x = x - α * s
     end
-    return x, g
+    return x, log_likelihood_grad(x, Γ, tp, Wp, t, W, n)
+end
+
+function modified_hessian_inv(H, tol = sqrt(eps()))
+    d, V = eigen(Symmetric(H))
+    d = abs.(d)
+    d = d + 1.0 * (d .< tol)
+    Dinv = @SMatrix [1 / d[1] 0; 0 1 / d[2]]
+    return V * Dinv * V'
 end
 
 function convergence_test(x, g, tol=1e-3)
@@ -185,7 +194,7 @@ function solve_logistic(tp::Int64, Wp::Int64, t::AbstractVector{Int64}, W::Abstr
     Γs = 0
     for Γ = 1:tp # type instability here with Threads.@threads
         obj, β, z = solve_logistic_Γ_subproblem(Γ, tp, Wp, t, W, n, β0, z0)
-        # β0, z0 = β, z # warm start
+        β0, z0 = β, z # warm start
         if obj >= max_obj
             max_obj = obj
             βs, zs, Γs = β, z, Γ
@@ -196,16 +205,16 @@ end
 
 function profile_log_likelihood(tp::Int64, t::AbstractVector{Int64}, W::AbstractVector{Int64}, n::Int64,
     β0::Float64 = β0c, z0::Float64 = z0c)
-    @assert(n > 0)
-    @assert all(t .>= 1) # time starts at 1
-    @assert issorted(t)
-    @assert tp > t[end]
-    @assert length(t) == length(W)
-    @assert all(0 .<= W .<= n)
+    # @assert(n > 0)
+    # @assert all(t .>= 1) # time starts at 1
+    # @assert issorted(t)
+    # @assert tp > t[end]
+    # @assert length(t) == length(W)
+    # @assert all(0 .<= W .<= n)
     lp = zeros(n + 1)
     Threads.@threads for i = 0:n
         _, β, z, Γ = solve_logistic(tp, i, t, W, n, β0, z0)
-        # β0, z0 = β, z # warm start
+        β0, z0 = β, z # warm start
         lp[i+1] = normalized_log_likelihood(β, z, Γ, tp, i, t, W, n)
     end
     return lp
