@@ -1,6 +1,6 @@
-sbatch atd_compare_1_1_1.sh
-sbatch atd_compare_1_1_2.sh
-sbatch atd_compare_1_2_1.sh
-sbatch atd_compare_50_1_1.sh
-sbatch atd_compare_50_1_2.sh
-sbatch atd_compare_50_2_1.sh
+sbatch results/result_scripts/atd_compare_1_1_1.sh
+sbatch results/result_scripts/atd_compare_1_1_2.sh
+sbatch results/result_scripts/atd_compare_1_2_1.sh
+sbatch results/result_scripts/atd_compare_50_1_1.sh
+sbatch results/result_scripts/atd_compare_50_1_2.sh
+sbatch results/result_scripts/atd_compare_50_2_1.sh
