@@ -27,6 +27,7 @@ const n = 200
 
 const β_true_L = ones(Float64, L) * β_true
 const p0_true_L = ones(Float64, L) * p0_true
+p0_true_L[1] = 0.02
 const Γ_true_L = ones(Int64, L) * typemax(Int64)
 Γ_true_L[1] = 1
 const maxiters = 150
@@ -45,21 +46,25 @@ const K = 1000
 tstate_constant = TStateConstant(1)
 println("Starting sampling")
 atd_constant = alarm_time_distribution(K, obs, unobs, astate, tstate_constant)
-write_alarm_time_distribution(obs, unobs, atd_constant, joinpath(save_path, "atd_constant_$(Γ_true_L[1]).csv"))
+fn = joinpath(save_path, "atd_constant_$(Γ_true_L[1])_$(p0_true_L[1])_$(p0_true_L[2]).csv")
+write_alarm_time_distribution(obs, unobs, atd_constant, fn)
 
 # Random
 tstate_random = TStateRandom()
 atd_random = alarm_time_distribution(K, obs, unobs, astate, tstate_random)
-write_alarm_time_distribution(obs, unobs, atd_random, joinpath(save_path, "atd_random_$(Γ_true_L[1]).csv"))
+fn = joinpath(save_path, "atd_random_$(Γ_true_L[1])_$(p0_true_L[1])_$(p0_true_L[2])..csv")
+write_alarm_time_distribution(obs, unobs, atd_random, fn)
 
 # Thompson Sampling
 tstate_thompson = TStateThompson(ones(L, 2))
 atd_thompson = alarm_time_distribution(K, obs, unobs, astate, tstate_thompson)
-write_alarm_time_distribution(obs, unobs, atd_thompson, joinpath(save_path, "atd_thompson_$(Γ_true_L[1]).csv"))
+fn = joinpath(save_path, "atd_thompson_$(Γ_true_L[1])_$(p0_true_L[1])_$(p0_true_L[2])..csv")
+write_alarm_time_distribution(obs, unobs, atd_thompson, fn)
 
 # Logistic Profile
 tstate_evsi = TStateEVSI()
 println("Starting evsi")
 atd_evsi = alarm_time_distribution(1, obs, unobs, astate, tstate_evsi) # compile
 @time atd_evsi = alarm_time_distribution(K, obs, unobs, astate, tstate_evsi) 
-write_alarm_time_distribution(obs, unobs, atd_evsi, joinpath(save_path, "atd_evsi_$(Γ_true_L[1]).csv"))
+fn = joinpath(save_path, "atd_evsi_$(Γ_true_L[1])_$(p0_true_L[1])_$(p0_true_L[2])..csv")
+write_alarm_time_distribution(obs, unobs, atd_evsi, fn)
