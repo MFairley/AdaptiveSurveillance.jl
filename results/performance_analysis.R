@@ -3,7 +3,7 @@ library(data.table)
 library(survival)
 library(survminer)
 results_path <- here("results", "tmp", "mfairley")
-header <- c("p1", "p2", "a0", "a1", "a2") # assuming 2 locations
+header <- c("p1", "p2", "p3", "p4", "p5","a0", "a1", "a2", "a3", "a4", "a5") # assuming 2 locations
 
 # Scenario: g, p1, p2
 read_scenario_alg <- function(alg, g, p1, p2) {
@@ -16,8 +16,11 @@ read_scenario_alg <- function(alg, g, p1, p2) {
 
 individual_format <- function (atd.dt) { # assuming for location 1
   d1 <- data.table(t = rep(atd.dt$t, atd.dt$a1), status = 1)[!is.na(t)]
-  d2 <- data.table(t = rep(atd.dt$t, atd.dt$a2), status = 0)[!is.na(t)]
-  d3 <- data.table(t = rep(atd.dt$t, atd.dt$a0), status = 0)[!is.na(t)]
+  d2 <- data.table(t = rep(atd.dt$t, atd.dt$a0), status = 0)[!is.na(t)]
+  d3 <- data.table(t = rep(atd.dt$t, atd.dt$a2), status = 0)[!is.na(t)]
+  d3 <- data.table(t = rep(atd.dt$t, atd.dt$a3), status = 0)[!is.na(t)]
+  d3 <- data.table(t = rep(atd.dt$t, atd.dt$a4), status = 0)[!is.na(t)]
+  d3 <- data.table(t = rep(atd.dt$t, atd.dt$a5), status = 0)[!is.na(t)]
   ind.dt <- rbindlist(list(d1, d2, d3))
   return(ind.dt)
 }

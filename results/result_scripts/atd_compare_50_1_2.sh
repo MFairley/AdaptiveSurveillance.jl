@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=surveillance_atd_50_1_2
-#SBATCH --time=03:00:00
+#SBATCH --time=10:00:00
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=12
