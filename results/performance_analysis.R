@@ -43,15 +43,18 @@ read_scenario_individual <- function(g, p1, p2) {
 }
 
 prob_false_alarm <- function (atd.dt, g) {
-  n <- sum(atd.dt[, a1])
-  e <- sum(atd.dt[t < 0, a1])
-  p <- e / n
-  hw <- sqrt(p * (1 - p) / n)
-  return(c(p-hw, p+hw))
+  dt <- atd.dt[, .(n = .SD[, sum(a1)], e = sum(.SD[t<0, a1])), by = alg]
+  dt[, p := e / n]
+  dt[, hw := sqrt(p * (1 - p) / n)]
+  dt[, pl := p - hw]
+  dt[, ph := p + hw]
+  return(dt)
 }
 
+### RESULTS
 # 1, 0.01, 0.01
-prob_false_alarm(read_scenario(1, 0.01, 0.01), 1)
+pfa_1_1_1.dt <- prob_false_alarm(read_scenario(1, 0.01, 0.01), 1)
+pfa_1_1_1.dt 
 atd_ind_1_1_1.dt <- read_scenario_individual(1, 0.01, 0.01)
 atd_ind_1_1_1_filt.dt <- atd_ind_1_1_1.dt[t >= 0]
 s_1_1_1 <- survfit(Surv(t, status) ~ alg, data = atd_ind_1_1_1_filt.dt)
@@ -59,30 +62,46 @@ s_1_1_1
 ggsurvplot(s_1_1_1, conf.int = T) # this breaks unless have access to the data
 
 # 1, 0.01, 0.02
-prob_false_alarm(read_scenario(1, 0.01, 0.02), 1)
+pfa_1_1_2.dt <- prob_false_alarm(read_scenario(1, 0.01, 0.02), 1)
+pfa_1_1_2.dt
 atd_ind_1_1_2.dt <- read_scenario_individual(1, 0.01, 0.02)
 atd_ind_1_1_2_filt.dt <- atd_ind_1_1_2.dt[t >= 0]
 s_1_1_2 <- survfit(Surv(t, status) ~ alg, data = atd_ind_1_1_2_filt.dt)
 s_1_1_2
+ggsurvplot(s_1_1_2, conf.int = T)
+
+# 1, 0.02, 0.01
+pfa_1_2_1.dt <- prob_false_alarm(read_scenario(1, 0.02, 0.01), 1)
+pfa_1_2_1.dt
+atd_ind_1_2_1.dt <- read_scenario_individual(1, 0.02, 0.01)
+atd_ind_1_2_1_filt.dt <- atd_ind_1_2_1.dt[t >= 0]
+s_1_2_1 <- survfit(Surv(t, status) ~ alg, data = atd_ind_1_2_1_filt.dt)
+s_1_2_1
+ggsurvplot(s_1_2_1, conf.int = T)
 
 # 50, 0.01, 0.01
-prob_false_alarm(read_scenario(50, 0.01, 0.01), 50)
+pfa_50_1_1.dt <- prob_false_alarm(read_scenario(50, 0.01, 0.01), 50)
+pfa_50_1_1.dt
 atd_ind_50_1_1.dt <- read_scenario_individual(50, 0.01, 0.01)
 atd_ind_50_1_1_filt.dt <- atd_ind_50_1_1.dt[t >= 0]
 s_50_1_1 <- survfit(Surv(t, status) ~ alg, data = atd_ind_50_1_1_filt.dt)
 s_50_1_1
+ggsurvplot(s_50_1_1, conf.int = T)
 
 # 50, 0.01, 0.02
-prob_false_alarm(read_scenario(50, 0.01, 0.02), 50)
+pfa_50_1_2.dt <- prob_false_alarm(read_scenario(50, 0.01, 0.02), 50)
+pfa_50_1_2.dt
 atd_ind_50_1_2.dt <- read_scenario_individual(50, 0.01, 0.02)
 atd_ind_50_1_2_filt.dt <- atd_ind_50_1_2.dt[t >= 0]
 s_50_1_2 <- survfit(Surv(t, status) ~ alg, data = atd_ind_50_1_2_filt.dt)
 s_50_1_2
+ggsurvplot(s_50_1_2, conf.int = T)
 
 # 50, 0.02, 0.01
-prob_false_alarm(read_scenario(50, 0.02, 0.01), 50)
+pfa_50_2_1.dt <-prob_false_alarm(read_scenario(50, 0.02, 0.01), 50)
+pfa_50_2_1.dt
 atd_ind_50_2_1.dt <- read_scenario_individual(50, 0.02, 0.01)
 atd_ind_50_2_1_filt.dt <- atd_ind_50_2_1.dt[t >= 0]
 s_50_2_1 <- survfit(Surv(t, status) ~ alg, data = atd_ind_50_2_1_filt.dt)
 s_50_2_1
-
+ggsurvplot(s_50_2_1, conf.int = T)

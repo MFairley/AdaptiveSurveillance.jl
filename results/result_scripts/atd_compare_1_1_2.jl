@@ -20,7 +20,7 @@ const save_path = get_save_path()[1]
 const sherlock = get_save_path()[2]
 
 # Problem Set Up
-const L = 2
+const L = 5
 const β_true = 0.015008
 const p0_true = 0.01
 const n = 200
