@@ -40,7 +40,7 @@ const α = 1000 # the higher, the less false positives
 astate = AStateIsotonic(α)
 
 # Sampling Policices
-const K = 2
+const K = 1000
 # Constant
 tstate_constant = TStateConstant(1)
 println("Starting sampling")
