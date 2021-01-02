@@ -9,6 +9,7 @@ header <- c("p1", "p2", "a0", "a1", "a2") # assuming 2 locations
 read_scenario_alg <- function(alg, g, p1, p2) {
   atd_alg.dt <- fread(paste(results_path, paste0("atd_", alg, "_", g, "_", p1, "_", p2, ".csv"), sep="/"), col.names = header)
   atd_alg.dt[, t := 1:.N]
+  atd_alg.dt[, t := t - g] # adjust to center around outbreak start time
   atd_alg.dt[, alg := alg]
   return(atd_alg.dt)
 }
@@ -41,16 +42,9 @@ read_scenario_individual <- function(g, p1, p2) {
   return(atd.dt)
 }
 
-survival_analysis <- function (atd_ind.dt, g) {
-  atd_ind.dt <- copy(atd_ind.dt)
-  atd_ind.dt[, t := t - g]
-  atd_ind.dt <- atd_ind.dt[t >= 0]
-  s <- survfit(Surv(t, status) ~ alg, data = atd_ind.dt)
-}
-
 prob_false_alarm <- function (atd.dt, g) {
   n <- sum(atd.dt[, a1])
-  e <- sum(atd.dt[t < g, a1])
+  e <- sum(atd.dt[t < 0, a1])
   p <- e / n
   hw <- sqrt(p * (1 - p) / n)
   return(c(p-hw, p+hw))
@@ -58,27 +52,37 @@ prob_false_alarm <- function (atd.dt, g) {
 
 # 1, 0.01, 0.01
 prob_false_alarm(read_scenario(1, 0.01, 0.01), 1)
-s_1_1_1 <- survival_analysis(read_scenario_individual(1, 0.01, 0.01), 1)
+atd_ind_1_1_1.dt <- read_scenario_individual(1, 0.01, 0.01)
+atd_ind_1_1_1_filt.dt <- atd_ind_1_1_1.dt[t >= 0]
+s_1_1_1 <- survfit(Surv(t, status) ~ alg, data = atd_ind_1_1_1_filt.dt)
 s_1_1_1
-#ggsurvplot(s_1_1_1, conf.int = T) # this breaks unless have access to the data
+ggsurvplot(s_1_1_1, conf.int = T) # this breaks unless have access to the data
 
 # 1, 0.01, 0.02
 prob_false_alarm(read_scenario(1, 0.01, 0.02), 1)
-s_1_1_2 <- survival_analysis(read_scenario_individual(1, 0.01, 0.02), 1)
+atd_ind_1_1_2.dt <- read_scenario_individual(1, 0.01, 0.02)
+atd_ind_1_1_2_filt.dt <- atd_ind_1_1_2.dt[t >= 0]
+s_1_1_2 <- survfit(Surv(t, status) ~ alg, data = atd_ind_1_1_2_filt.dt)
 s_1_1_2
 
 # 50, 0.01, 0.01
 prob_false_alarm(read_scenario(50, 0.01, 0.01), 50)
-s_50_1_1 <- survival_analysis(read_scenario_individual(50, 0.01, 0.01), 50)
+atd_ind_50_1_1.dt <- read_scenario_individual(50, 0.01, 0.01)
+atd_ind_50_1_1_filt.dt <- atd_ind_50_1_1.dt[t >= 0]
+s_50_1_1 <- survfit(Surv(t, status) ~ alg, data = atd_ind_50_1_1_filt.dt)
 s_50_1_1
 
 # 50, 0.01, 0.02
 prob_false_alarm(read_scenario(50, 0.01, 0.02), 50)
-s_50_1_2 <- survival_analysis(read_scenario_individual(50, 0.01, 0.02), 50)
+atd_ind_50_1_2.dt <- read_scenario_individual(50, 0.01, 0.02)
+atd_ind_50_1_2_filt.dt <- atd_ind_50_1_2.dt[t >= 0]
+s_50_1_2 <- survfit(Surv(t, status) ~ alg, data = atd_ind_50_1_2_filt.dt)
 s_50_1_2
 
 # 50, 0.02, 0.01
 prob_false_alarm(read_scenario(50, 0.02, 0.01), 50)
-s_50_2_1 <- survival_analysis(read_scenario_individual(50, 0.02, 0.01), 50)
+atd_ind_50_2_1.dt <- read_scenario_individual(50, 0.02, 0.01)
+atd_ind_50_2_1_filt.dt <- atd_ind_50_2_1.dt[t >= 0]
+s_50_2_1 <- survfit(Surv(t, status) ~ alg, data = atd_ind_50_2_1_filt.dt)
 s_50_2_1
 

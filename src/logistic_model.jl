@@ -7,7 +7,7 @@ using FastClosures
 using LinearAlgebra
 using Plots
 
-const ux = @SVector [0.1, logit(0.1)] # upper bounds for β and z
+const ux = @SVector [0.1, logit(0.1)] # upper bounds for β and z <- make this optonal!
 const β0c = ux[1] / 10.0 # initial guess for β
 const z0c = ux[2] - 1.0 # initial guess for z
 
