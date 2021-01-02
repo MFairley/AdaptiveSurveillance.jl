@@ -40,7 +40,7 @@ const α = 1000 # the higher, the less false positives
 astate = AStateIsotonic(α)
 
 # Sampling Policices
-const K = 1000
+const K = 2
 # Constant
 tstate_constant = TStateConstant(1)
 println("Starting sampling")
@@ -51,19 +51,19 @@ write_alarm_time_distribution(obs, unobs, atd_constant, fn)
 # Random
 tstate_random = TStateRandom()
 atd_random = alarm_time_distribution(K, obs, unobs, astate, tstate_random)
-fn = joinpath(save_path, "atd_random_$(Γ_true_L[1])_$(p0_true_L[1])_$(p0_true_L[2])..csv")
+fn = joinpath(save_path, "atd_random_$(Γ_true_L[1])_$(p0_true_L[1])_$(p0_true_L[2]).csv")
 write_alarm_time_distribution(obs, unobs, atd_random, fn)
 
 # Thompson Sampling
 tstate_thompson = TStateThompson(ones(L, 2))
 atd_thompson = alarm_time_distribution(K, obs, unobs, astate, tstate_thompson)
-fn = joinpath(save_path, "atd_thompson_$(Γ_true_L[1])_$(p0_true_L[1])_$(p0_true_L[2])..csv")
+fn = joinpath(save_path, "atd_thompson_$(Γ_true_L[1])_$(p0_true_L[1])_$(p0_true_L[2]).csv")
 write_alarm_time_distribution(obs, unobs, atd_thompson, fn)
 
 # Logistic Profile
 tstate_evsi = TStateEVSI()
 println("Starting evsi")
 atd_evsi = alarm_time_distribution(1, obs, unobs, astate, tstate_evsi) # compile
-@time atd_evsi = alarm_time_distribution(K, obs, unobs, astate, tstate_evsi) 
-fn = joinpath(save_path, "atd_evsi_$(Γ_true_L[1])_$(p0_true_L[1])_$(p0_true_L[2])..csv")
+@time atd_evsi = alarm_time_distribution(K, obs, unobs, astate, tstate_evsi)
+fn = joinpath(save_path, "atd_evsi_$(Γ_true_L[1])_$(p0_true_L[1])_$(p0_true_L[2]).csv")
 write_alarm_time_distribution(obs, unobs, atd_evsi, fn)
