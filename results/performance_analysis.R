@@ -77,13 +77,13 @@ sfit.dt[, c("alarm", "alarm_lower", "alarm_upper") := list(1 - surv, 1 - upper, 
 ggplot(sfit.dt, aes(x = time, y = alarm, ymin=alarm_lower, ymax=alarm_upper, fill=alg, color=alg)) +
   facet_grid(rows = vars(p1p2), cols = vars(g)) +
   geom_step() + # to do: add CI +
-  xlab("Time (weeks)") + ylab("Cumulative Probability of Alarm") + 
+  xlab("Time (weeks)") + ylab("Cumulative Probability of Alarm in Location 1") + 
   scale_color_discrete(name = "Algorithm") + 
   theme(legend.position = "bottom")
 
 ggsave("survival_curves.pdf", width=8, height=8)
 
-# False Alarm Probability
+# False Alarm Probability for location 1 only
 false_alarm_prob <- function(g_sel, acc=0.01) {
   sfit_false <- survfit(Surv(t, status) ~ alg + g + p1p2, data = atd_ind.dt[g == g_sel])  
   res_false <- summary(sfit_false, times = g_sel)
@@ -95,6 +95,9 @@ false_alarm_prob <- function(g_sel, acc=0.01) {
 fap1.dt <- false_alarm_prob(1)
 fap50.dt <- false_alarm_prob(50)
 fap.dt <- rbindlist(list(fap1.dt, fap50.dt))
+
+# False Alarm Probability for all locations
+
 
 # Median Delay
 median_cond_delay <- function(g_sel, acc=1.0) {
