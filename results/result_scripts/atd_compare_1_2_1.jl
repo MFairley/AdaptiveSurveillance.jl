@@ -30,7 +30,7 @@ const p0_true_L = ones(Float64, L) * p0_true
 p0_true_L[1] = 0.02
 const Γ_true_L = ones(Int64, L) * typemax(Int64)
 Γ_true_L[1] = 1
-const maxiters = 150
+const maxiters = 1000
 
 # System State
 obs = StateObservable(L, n, maxiters)
