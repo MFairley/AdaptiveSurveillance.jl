@@ -30,7 +30,7 @@ read_scenario <- function(g, p1, p2) {
 
 individual_format <- function (atd.dt) { # assuming outbreak in location 1 to do: make this generalize to L locations
   d1 <- data.table(t = rep(atd.dt$t, atd.dt$a1), status = 1)[!is.na(t)] # <- outbreak location
-  d2 <- data.table(t = rep(atd.dt$t, atd.dt$a0), status = 0)[!is.na(t)] # to do: make this not throw a warning
+  d2 <- data.table(t = rep(atd.dt$t, atd.dt$a0), status = 0)[!is.na(t)] # to do: make this not throw a warning, this should be 0
   d3 <- data.table(t = rep(atd.dt$t, atd.dt$a2), status = 0)[!is.na(t)]
   d4 <- data.table(t = rep(atd.dt$t, atd.dt$a3), status = 0)[!is.na(t)]
   d5 <- data.table(t = rep(atd.dt$t, atd.dt$a4), status = 0)[!is.na(t)]
