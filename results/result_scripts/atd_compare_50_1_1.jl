@@ -61,9 +61,11 @@ fn = joinpath(save_path, "atd_thompson_$(Γ_true_L[1])_$(p0_true_L[1])_$(p0_true
 write_alarm_time_distribution(obs, unobs, atd_thompson, fn)
 
 # Logistic Profile
-tstate_evsi = TStateEVSI()
+const βu = 0.05
+const zu = logit(0.05)
+tstate_evsi = TStateEVSI(βu, zu)
 println("Starting evsi")
 atd_evsi = alarm_time_distribution(1, obs, unobs, astate, tstate_evsi) # compile
-@time atd_evsi = alarm_time_distribution(K, obs, unobs, astate, tstate_evsi) 
-fn = joinpath(save_path, "atd_evsi_$(Γ_true_L[1])_$(p0_true_L[1])_$(p0_true_L[2]).csv")
+@time atd_evsi = alarm_time_distribution(K, obs, unobs, astate, tstate_evsi)
+fn = joinpath(save_path, "atd_evsi_$(Γ_true_L[1])_$(p0_true_L[1])_$(p0_true_L[2])_$(βu)_$(round(zu, digits=2)).csv")
 write_alarm_time_distribution(obs, unobs, atd_evsi, fn)
