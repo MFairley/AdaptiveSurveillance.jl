@@ -8,48 +8,58 @@ library(stringr)
 library(latex2exp)
 results_path <- here("results", "tmp", "mfairley")
 output_path <-  here("results", "tmp")
-header <- c("p1", "p2", "p3", "p4", "p5","a0", "a1", "a2", "a3", "a4", "a5") # assuming 5 locations
+L <- 5
+header <- c(sprintf("p%d",seq(1:L)), sprintf("a%d",seq(from = 0, to = L)))
 
-# Scenario: g, p1, p2
-read_scenario_alg <- function(alg, g, p1, p2) {
+# Scenario / Experiment: g, p1, p2, alg
+read_scenario_alg <- function(g, p1, p2, alg) {
   atd_alg.dt <- fread(paste(results_path, paste0("atd_", alg, "_", g, "_", p1, "_", p2, ".csv"), sep="/"), col.names = header)
   atd_alg.dt[, t := 1:.N]
-  atd_alg.dt[, alg := alg]
   atd_alg.dt[, g := factor(g)]
   atd_alg.dt[, p1p2 := factor(paste0(p1, "_", p2))]
+  atd_alg.dt[, alg := alg]
   return(atd_alg.dt)
 }
 
-read_scenario <- function(g, p1, p2) {
-  atd_constant.dt <- read_scenario_alg("constant", g, p1, p2)
-  atd_random.dt <- read_scenario_alg("random", g, p1, p2)
-  atd_thompson.dt <- read_scenario_alg("thompson", g, p1, p2)
-  atd_evsi.dt <- read_scenario_alg("evsi", g, p1, p2)
-  atd.dt <- rbindlist(list(constant=atd_constant.dt,random=atd_random.dt,thompson=atd_thompson.dt,evsi=atd_evsi.dt), use.names = T, idcol = "alg")
+read_scenario <- function(g, p1, p2, algs = c("constant", "random", "thompson", "evsi"),
+                          alg_labels = c("Clairvoyance", "Profile Likelihood", "Thompson Sampling", "Uniform Random")) {
+  atd.dt <- data.table()
+  for (a in algs) {
+    tmp.dt <- read_scenario_alg(g, p1, p2, a)
+    atd.dt <- rbindlist(list(atd.dt, tmp.dt), use.names = T)
+  }
+  atd.dt[, alg := factor(alg, levels = algs, labels = alg_labels)]
   return(atd.dt)
 }
 
-individual_format <- function (atd.dt) { # assuming outbreak in location 1 to do: make this generalize to L locations
-  d1 <- data.table(t = rep(atd.dt$t, atd.dt$a1), status = 1)[!is.na(t)] # <- outbreak location
-  d2 <- data.table(t = rep(atd.dt$t, atd.dt$a0), status = 0)[!is.na(t)] # to do: make this not throw a warning, this should be 0
-  d3 <- data.table(t = rep(atd.dt$t, atd.dt$a2), status = 0)[!is.na(t)]
-  d4 <- data.table(t = rep(atd.dt$t, atd.dt$a3), status = 0)[!is.na(t)]
-  d5 <- data.table(t = rep(atd.dt$t, atd.dt$a4), status = 0)[!is.na(t)]
-  d6 <- data.table(t = rep(atd.dt$t, atd.dt$a5), status = 0)[!is.na(t)]
-  ind.dt <- rbindlist(list(d1, d2, d3, d4, d5, d6))
+read_scenario_alg_ind <- function (g, p1, p2, alg) { 
+  atd.dt <- read_scenario_alg(g, p1, p2, alg)
+  a0s <- atd.dt[, sum(a0)]
+  if (a0s > 0) {
+    stop("a0 > 0")
+  }
+  # assuming outbreak in location 1
+  ind.dt <- data.table(t = rep(atd.dt$t, atd.dt$a1), status = 1)[!is.na(t)]
+  for (i in 2:L) {
+    if (sum(atd.dt[, paste0("a", i), with=F]) > 0) {
+      tmp.dt <- data.table(t = rep(atd.dt$t, unlist(atd.dt[, paste0("a", i), with=F])), status = 0)[!is.na(t)]
+      ind.dt <- rbindlist(list(ind.dt, tmp.dt), use.names = T)
+    }
+  }
+  ind.dt[, g := factor(g)]
+  ind.dt[, p1p2 := factor(paste0(p1, "_", p2))]
+  ind.dt[, alg := alg]
   return(ind.dt)
 }
 
-read_scenario_individual <- function(g, p1, p2) {
-  atd_constant.dt <- individual_format(read_scenario_alg("constant", g, p1, p2))
-  atd_random.dt <-individual_format(read_scenario_alg("random", g, p1, p2))
-  atd_thompson.dt <- individual_format(read_scenario_alg("thompson", g, p1, p2))
-  atd_evsi.dt <- individual_format(read_scenario_alg("evsi", g, p1, p2))
-
-  atd.dt <- rbindlist(list(constant=atd_constant.dt,random=atd_random.dt,thompson=atd_thompson.dt,evsi=atd_evsi.dt), use.names = T, idcol = "alg")
-  atd.dt[, alg := factor(alg, levels = c("constant", "evsi", "thompson", "random"), labels = c("Clairvoyance", "Profile Likelihood", "Thompson Sampling", "Uniform Random"))]
-  atd.dt[, g := factor(g,)]
-  atd.dt[, p1p2 := paste0(p1, "_", p2)]
+read_scenario_individual <- function(g, p1, p2, algs = c("constant", "random", "thompson", "evsi"),
+                              alg_labels = c("Clairvoyance", "Profile Likelihood", "Thompson Sampling", "Uniform Random")) {
+  atd.dt <- data.table()
+  for (a in algs) {
+    tmp.dt <- read_scenario_alg_ind(g, p1, p2, a)
+    atd.dt <- rbindlist(list(atd.dt, tmp.dt), use.names = T)
+  }
+  atd.dt[, alg := factor(alg, levels = algs, labels = alg_labels)]
   return(atd.dt)
 }
 
@@ -69,8 +79,8 @@ atd_ind.dt <- rbindlist(list(atd_ind_1_1_1.dt, atd_ind_1_1_2.dt,
 sfit <-  survfit(Surv(t, status) ~ alg + g + p1p2, data = atd_ind.dt)
 
 # Publication plot
-sfit.dt <- data.table(surv_summary(sfit))[, .(p1p2, alg, g, time, surv, upper, lower)]
-# add first point
+sfit.dt <- data.table(surv_summary(sfit, data = atd_ind.dt))[, .(p1p2, alg, g, time, surv, upper, lower)]
+# add first points
 sfit_add.dt <- data.table(p1p2 = unique(sfit.dt$p1p2), alg = unique(sfit.dt$alg), g = unique(sfit.dt$g), time = 0, surv = 1.0, upper = 1.0, lower = 1.0)
 sfit.dt <- rbindlist(list(sfit.dt, sfit_add.dt))[order(p1p2, alg, g, time)]
 sfit.dt[, c("alarm", "alarm_lower", "alarm_upper") := list(1 - surv, 1 - upper, 1 - lower)]
@@ -122,27 +132,15 @@ median_cond_delay <- function(g_sel, acc=1.0) {
 med1.dt <- median_cond_delay(1)
 med50.dt <- median_cond_delay(50)
 med.dt <- rbindlist(list(med1.dt, med50.dt))
+med.dt[, c("alg", "g", "p1p2") := tstrsplit(scenario, ",", fixed=T)]
+med.dt[, c("alg", "g", "p1p2") := list(str_trim(gsub(".*=","",alg)), str_trim(gsub(".*=","",g)), str_trim(gsub(".*=","",p1p2)))]
 
 # Publication Table of Results
-tor.dt <- med.dt
-tor.dt[, c("alg", "g", "p1p2") := tstrsplit(scenario, ",", fixed=T)]
-tor.dt[, c("alg", "g", "p1p2") := list(str_trim(gsub(".*=","",alg)), str_trim(gsub(".*=","",g)), str_trim(gsub(".*=","",p1p2)))]
-tor.dt <- merge(tor.dt, fap.dt[, .(p1p2, alg, g, p, fprob_fmt)], by = c("p1p2", "alg", "g"))
-tor_raw.dt <- tor.dt[, .(p1p2, alg, g, p, q50_s)]
+tor.dt <- merge(med.dt, fap.dt[, .(p1p2, alg, g, p, fprob_fmt)], by = c("p1p2", "alg", "g"))
 tor.dt <- tor.dt[, .(p1p2, alg, g, fprob_fmt, med_fmt)]
-# <- 
 tor.dt <-  dcast(tor.dt, p1p2 + alg ~ g, value.var = c("fprob_fmt", "med_fmt"))
-#tor.dt <- tor.dt[, .(p1p2, alg, fprob_fmt_1, med_fmt_1, fprob_fmt_50, med_fmt_50)]
-fwrite(tor.dt, paste(output_path, "table_of_results_raw.csv", sep="/"))
-
 tor.dt
-
-# 2D plot
-ggplot(tor_raw.dt, aes(x = p, y = q50_s, color=alg)) +
-  facet_grid(vars(p1p2), vars(g)) + geom_point() +
-  theme(legend.position = "bottom")
-
-ggsave(paste(output_path, "trade_off.pdf", sep="/"), width=8, height=8)
+fwrite(tor.dt, paste(output_path, "table_of_results_raw.csv", sep="/"))
 
 
 
