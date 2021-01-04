@@ -21,6 +21,9 @@ tstate_random = TStateRandom()
 # Thompson Sampling
 tstate_thompson = TStateThompson(ones(L, 2))
 
+# Logistic Clairvoyance
+tstate_evsi_clairvoyance = TStateEVSIClairvoyant(unobs)
+
 # Logistic Profile
 tstate_evsi = TStateEVSI(βu, zu)
 evsi_test = replication(obs, unobs, astate, tstate_evsi)
@@ -30,4 +33,5 @@ const K = 2
 atd_constant = alarm_time_distribution(K, obs, unobs, astate, tstate_constant)
 atd_random = alarm_time_distribution(K, obs, unobs, astate, tstate_random)
 atd_thompson = alarm_time_distribution(K, obs, unobs, astate, tstate_thompson)
+@time atd_evsi_clairvoyant = alarm_time_distribution(K, obs, unobs, astate, tstate_evsi_clairvoyance)
 @time atd_evsi = alarm_time_distribution(K, obs, unobs, astate, tstate_evsi)

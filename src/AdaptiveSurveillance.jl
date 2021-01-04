@@ -23,5 +23,6 @@ export TStateConstant
 export TStateRandom
 export TStateThompson
 export TStateEVSI
+export TStateEVSIClairvoyant
 
 end # module
