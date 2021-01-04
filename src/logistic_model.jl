@@ -152,6 +152,8 @@ end
 function solve_logistic_Γ_subproblem(Γ::Int64, tp::Int64, Wp::Int64, t::AbstractVector{Int64}, W::AbstractVector{Int64}, n::Int64,
     βu::Float64, zu::Float64, β0::Float64 = βu/10, z0::Float64 = zu - 1.0)
 
+    @assert(βu > 0.0)
+
     if Γ >= tp # so all tΓ are 0, just use standard MLE with constraint
         β = 0.0 # unindentifiable, assume a default value
         z = min(logit((sum(W) + Wp) / (n * (length(W) + 1))), βu)

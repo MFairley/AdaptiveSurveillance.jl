@@ -42,6 +42,8 @@ function tfunc(t, obs, astate, afunc, tstate::TStateThompson, rng_test)
 end
 
 struct TStateEVSI <: TState
+    βu::Float64
+    zu::Float64
 end
 
 function reset(tstate::TStateEVSI)
@@ -80,7 +82,7 @@ function tfunc(t, obs, astate, afunc, tstate::TStateEVSI, rng_test)
             end
             past_times = @view((1:obs.maxiters)[obs.x .== l])
             past_counts = @view(obs.W[obs.x .== l])
-            probability_alarm[l] = sum(profile_likelihood(t, past_times, past_counts, obs.n)[i+1:end])
+            probability_alarm[l] = sum(profile_likelihood(t, past_times, past_counts, obs.n, tstate.βu, tstate.zu)[i+1:end])
             # println("t = $t, l = $l, times = $past_times, W = $past_counts, prob = $(probability_alarm[l])")
         end
         return argmax(probability_alarm) # be careful about getting stuck

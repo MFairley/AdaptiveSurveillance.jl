@@ -22,7 +22,7 @@ tstate_random = TStateRandom()
 tstate_thompson = TStateThompson(ones(L, 2))
 
 # Logistic Profile
-tstate_evsi = TStateEVSI()
+tstate_evsi = TStateEVSI(βu, zu)
 evsi_test = replication(obs, unobs, astate, tstate_evsi)
 
 # Alarm Time Distributions
