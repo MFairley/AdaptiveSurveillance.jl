@@ -8,6 +8,16 @@ library(stringr)
 library(latex2exp)
 results_path <- here("results", "tmp", "mfairley")
 output_path <-  here("results", "tmp")
+
+# Experimental Setup
+# Algorithms
+algs = c("constant", "random", "thompson", "evsi", "evsi_0.05_0.05")
+alg_labels <- c("Clairvoyance", "Uniform Random", "Thompson Sampling", "Profile Likelihood", "Profile Likelihood(0.05;0.05)")
+# Environments
+gammas <- c(1, 50)
+p1s <- c(0.01, 0.02)
+p2s <- c(0.02, 0.01)
+
 L <- 5
 header <- c(sprintf("p%d",seq(1:L)), sprintf("a%d",seq(from = 0, to = L)))
 
@@ -21,8 +31,7 @@ read_scenario_alg <- function(g, p1, p2, alg) {
   return(atd_alg.dt)
 }
 
-read_scenario <- function(g, p1, p2, algs = c("constant", "random", "thompson", "evsi"),
-                          alg_labels = c("Clairvoyance", "Profile Likelihood", "Thompson Sampling", "Uniform Random")) {
+read_scenario <- function(g, p1, p2) {
   atd.dt <- data.table()
   for (a in algs) {
     tmp.dt <- read_scenario_alg(g, p1, p2, a)
@@ -52,8 +61,7 @@ read_scenario_alg_ind <- function (g, p1, p2, alg) {
   return(ind.dt)
 }
 
-read_scenario_individual <- function(g, p1, p2, algs = c("constant", "random", "thompson", "evsi"),
-                              alg_labels = c("Clairvoyance", "Profile Likelihood", "Thompson Sampling", "Uniform Random")) {
+read_scenario_individual <- function(g, p1, p2) {
   atd.dt <- data.table()
   for (a in algs) {
     tmp.dt <- read_scenario_alg_ind(g, p1, p2, a)
@@ -63,24 +71,52 @@ read_scenario_individual <- function(g, p1, p2, algs = c("constant", "random", "
   return(atd.dt)
 }
 
+# False Alarm Probability (for all locations)any location)
+false_alarm_prob <- function(atd_ind.dt, acc=0.01) {
+  fap.dt <- atd_ind.dt[, .(fa=sum((status == 1) & (t < as.numeric(as.character(g)))) + sum(status == 0), n=.N), by = .(p1p2, alg, g)]
+  fap.dt[, p := fa / n]
+  fap.dt[, hw := sqrt(p * (1-p) / n)]
+  fap.dt[, lower := p - hw]
+  fap.dt[, upper := p + hw]
+  fap.dt[, fprob_fmt := paste0(comma(p, accuracy = acc), " [", comma(lower, accuracy = acc), ", ", comma(upper, accuracy = acc), "]")]
+  return(fap.dt)
+}
+
+# Median Conditional Delay
+median_cond_delay <- function(atd_ind.dt, g_sel, acc=1.0) {
+  sfit_delay <-  survfit(Surv(t, status) ~ alg + g + p1p2, data = atd_ind.dt[g == g_sel], start.time = g_sel - 1)
+  quantile_delay <- quantile(sfit_delay, 0.5) # median
+  res_delay.dt <- data.table(data.frame(quantile_delay), keep.rownames = T)
+  setnames(res_delay.dt, names(res_delay.dt), c("scenario", "q50", "low", "up"))
+  res_delay.dt[, q50_s := q50 - g_sel]
+  res_delay.dt[, low_s := low - g_sel]
+  res_delay.dt[, up_s := up - g_sel]
+  res_delay.dt[, med_fmt := paste0(comma(q50_s, accuracy = acc), " [", comma(low_s, accuracy = acc), ", ", comma(up_s, accuracy = acc), "]")]
+  res_delay.dt[, c("alg", "g", "p1p2") := tstrsplit(scenario, ",", fixed=T)]
+  res_delay.dt[, c("alg", "g", "p1p2") := list(str_trim(gsub(".*=","",alg)), str_trim(gsub(".*=","",g)), str_trim(gsub(".*=","",p1p2)))]
+  return(res_delay.dt[, .(p1p2, alg, g, q50_s, med_fmt)])
+}
+
 ### RESULTS
 # Read in all scenarios and combine
-atd_ind_1_1_1.dt <- read_scenario_individual(1, 0.01, 0.01)
-atd_ind_1_1_2.dt <- read_scenario_individual(1, 0.01, 0.02)
-atd_ind_1_2_1.dt <- read_scenario_individual(1, 0.02, 0.01)
-atd_ind_50_1_1.dt <- read_scenario_individual(50, 0.01, 0.01)
-atd_ind_50_1_2.dt <- read_scenario_individual(50, 0.01, 0.02)
-atd_ind_50_2_1.dt <- read_scenario_individual(50, 0.02, 0.01)
-atd_ind.dt <- rbindlist(list(atd_ind_1_1_1.dt, atd_ind_1_1_2.dt,
-                             atd_ind_1_2_1.dt, atd_ind_50_1_1.dt,
-                             atd_ind_50_1_2.dt, atd_ind_50_2_1.dt))
+atd_ind.dt <- data.table()
+for (g in gammas) {
+  for (p1 in p1s) {
+    for (p2 in p2s) {
+      if (!(p1 == 0.02 && p2 == 0.02)) { # did not do this combo
+        tmp.dt <- read_scenario_individual(g, p1, p2)
+        atd_ind.dt <- rbindlist(list(atd_ind.dt, tmp.dt))
+      }
+    }
+  }
+}
 
 # Fit survival curves
 sfit <-  survfit(Surv(t, status) ~ alg + g + p1p2, data = atd_ind.dt)
 
-# Publication plot
+# Publication plot of survival curves
 sfit.dt <- data.table(surv_summary(sfit, data = atd_ind.dt))[, .(p1p2, alg, g, time, surv, upper, lower)]
-# add first points
+# add first points of 1.0
 sfit_add.dt <- data.table(p1p2 = unique(sfit.dt$p1p2), alg = unique(sfit.dt$alg), g = unique(sfit.dt$g), time = 0, surv = 1.0, upper = 1.0, lower = 1.0)
 sfit.dt <- rbindlist(list(sfit.dt, sfit_add.dt))[order(p1p2, alg, g, time)]
 sfit.dt[, c("alarm", "alarm_lower", "alarm_upper") := list(1 - surv, 1 - upper, 1 - lower)]
@@ -94,53 +130,16 @@ ggplot(sfit.dt, aes(x = time, y = alarm, ymin=alarm_lower, ymax=alarm_upper, fil
 
 ggsave(paste(output_path, "survival_curves.pdf", sep="/"), width=8, height=8)
 
-# False Alarm Probability for location 1 only
-false_alarm_prob <- function(g_sel, acc=0.01) {
-  sfit_false <- survfit(Surv(t, status) ~ alg + g + p1p2, data = atd_ind.dt[g == g_sel])  
-  res_false <- summary(sfit_false, times = g_sel)
-  res_false.dt <- data.table(scenario = rownames(res_false$table), fprob = 1 - res_false$surv, fprob_low = 1 - res_false$upper, fprob_high = 1 - res_false$lower)
-  res_false.dt[, fprob_fmt := paste0(comma(fprob, accuracy = acc), " [", comma(fprob_low, accuracy = acc), ", ", comma(fprob_high, accuracy = acc), "]")]
-  return(res_false.dt[, .(scenario, fprob_fmt)])
-}
-
-#fap1.dt <- false_alarm_prob(1)
-#fap50.dt <- false_alarm_prob(50)
-#fap.dt <- rbindlist(list(fap1.dt, fap50.dt))
-
-# False Alarm Probability for all locations
-fap.dt <- atd_ind.dt[, .(fa=sum((status == 1) & (t < as.numeric(as.character(g)))) + sum(status == 0), n=.N), by = .(p1p2, alg, g)]
-fap.dt[, p := fa / n]
-fap.dt[, hw := sqrt(p * (1-p) / n)]
-fap.dt[, lower := p - hw]
-fap.dt[, upper := p + hw]
-acc=0.01
-fap.dt[, fprob_fmt := paste0(comma(p, accuracy = acc), " [", comma(lower, accuracy = acc), ", ", comma(upper, accuracy = acc), "]")]
-
-# Median Delay
-median_cond_delay <- function(g_sel, acc=1.0) {
-  sfit_delay <-  survfit(Surv(t, status) ~ alg + g + p1p2, data = atd_ind.dt[g == g_sel], start.time = g_sel - 1)
-  quantile_delay <- quantile(sfit_delay, 0.5) # median
-  res_delay.dt <- data.table(data.frame(quantile_delay), keep.rownames = T)
-  setnames(res_delay.dt, names(res_delay.dt), c("scenario", "q50", "low", "up"))
-  res_delay.dt[, q50_s := q50 - g_sel]
-  res_delay.dt[, low_s := low - g_sel]
-  res_delay.dt[, up_s := up - g_sel]
-  res_delay.dt[, med_fmt := paste0(comma(q50_s, accuracy = acc), " [", comma(low_s, accuracy = acc), ", ", comma(up_s, accuracy = acc), "]")]
-  return(res_delay.dt[, .(scenario, med_fmt, q50_s)])
-}
-
-med1.dt <- median_cond_delay(1)
-med50.dt <- median_cond_delay(50)
-med.dt <- rbindlist(list(med1.dt, med50.dt))
-med.dt[, c("alg", "g", "p1p2") := tstrsplit(scenario, ",", fixed=T)]
-med.dt[, c("alg", "g", "p1p2") := list(str_trim(gsub(".*=","",alg)), str_trim(gsub(".*=","",g)), str_trim(gsub(".*=","",p1p2)))]
-
 # Publication Table of Results
+fap.dt <- false_alarm_prob(atd_ind.dt)
+med1.dt <- median_cond_delay(atd_ind.dt, 1)
+med50.dt <- median_cond_delay(atd_ind.dt, 50)
+med.dt <- rbindlist(list(med1.dt, med50.dt))
+
 tor.dt <- merge(med.dt, fap.dt[, .(p1p2, alg, g, p, fprob_fmt)], by = c("p1p2", "alg", "g"))
 tor.dt <- tor.dt[, .(p1p2, alg, g, fprob_fmt, med_fmt)]
 tor.dt <-  dcast(tor.dt, p1p2 + alg ~ g, value.var = c("fprob_fmt", "med_fmt"))
 tor.dt
+
 fwrite(tor.dt, paste(output_path, "table_of_results_raw.csv", sep="/"))
-
-
 
