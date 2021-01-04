@@ -7,6 +7,7 @@ library(scales)
 library(stringr)
 library(latex2exp)
 results_path <- here("results", "tmp", "mfairley")
+output_path <-  here("results", "tmp")
 header <- c("p1", "p2", "p3", "p4", "p5","a0", "a1", "a2", "a3", "a4", "a5") # assuming 5 locations
 
 # Scenario: g, p1, p2
@@ -75,13 +76,13 @@ sfit.dt <- rbindlist(list(sfit.dt, sfit_add.dt))[order(p1p2, alg, g, time)]
 sfit.dt[, c("alarm", "alarm_lower", "alarm_upper") := list(1 - surv, 1 - upper, 1 - lower)]
 
 ggplot(sfit.dt, aes(x = time, y = alarm, ymin=alarm_lower, ymax=alarm_upper, fill=alg, color=alg)) +
-  facet_grid(rows = vars(p1p2), cols = vars(g)) +
-  geom_step() + # to do: add CI +
+  facet_grid(rows = vars(p1p2), cols = vars(g)) + xlim(0, 150) +
+  geom_step() + # to do: add CI
   xlab("Time (weeks)") + ylab("Cumulative Probability of Alarm in Location 1") + 
   scale_color_discrete(name = "Algorithm") + 
   theme(legend.position = "bottom")
 
-ggsave("survival_curves.pdf", width=8, height=8)
+ggsave(paste(output_path, "survival_curves.pdf", sep="/"), width=8, height=8)
 
 # False Alarm Probability for location 1 only
 false_alarm_prob <- function(g_sel, acc=0.01) {
@@ -92,12 +93,18 @@ false_alarm_prob <- function(g_sel, acc=0.01) {
   return(res_false.dt[, .(scenario, fprob_fmt)])
 }
 
-fap1.dt <- false_alarm_prob(1)
-fap50.dt <- false_alarm_prob(50)
-fap.dt <- rbindlist(list(fap1.dt, fap50.dt))
+#fap1.dt <- false_alarm_prob(1)
+#fap50.dt <- false_alarm_prob(50)
+#fap.dt <- rbindlist(list(fap1.dt, fap50.dt))
 
 # False Alarm Probability for all locations
-
+fap.dt <- atd_ind.dt[, .(fa=sum((status == 1) & (t < as.numeric(as.character(g)))) + sum(status == 0), n=.N), by = .(p1p2, alg, g)]
+fap.dt[, p := fa / n]
+fap.dt[, hw := sqrt(p * (1-p) / n)]
+fap.dt[, lower := p - hw]
+fap.dt[, upper := p + hw]
+acc=0.01
+fap.dt[, fprob_fmt := paste0(comma(p, accuracy = acc), " [", comma(lower, accuracy = acc), ", ", comma(upper, accuracy = acc), "]")]
 
 # Median Delay
 median_cond_delay <- function(g_sel, acc=1.0) {
@@ -109,29 +116,33 @@ median_cond_delay <- function(g_sel, acc=1.0) {
   res_delay.dt[, low_s := low - g_sel]
   res_delay.dt[, up_s := up - g_sel]
   res_delay.dt[, med_fmt := paste0(comma(q50_s, accuracy = acc), " [", comma(low_s, accuracy = acc), ", ", comma(up_s, accuracy = acc), "]")]
-  return(res_delay.dt[, .(scenario, med_fmt)])
+  return(res_delay.dt[, .(scenario, med_fmt, q50_s)])
 }
 
 med1.dt <- median_cond_delay(1)
 med50.dt <- median_cond_delay(50)
 med.dt <- rbindlist(list(med1.dt, med50.dt))
 
-
 # Publication Table of Results
-tor.dt <- merge(fap.dt, med.dt, by = "scenario")
+tor.dt <- med.dt
 tor.dt[, c("alg", "g", "p1p2") := tstrsplit(scenario, ",", fixed=T)]
 tor.dt[, c("alg", "g", "p1p2") := list(str_trim(gsub(".*=","",alg)), str_trim(gsub(".*=","",g)), str_trim(gsub(".*=","",p1p2)))]
+tor.dt <- merge(tor.dt, fap.dt[, .(p1p2, alg, g, p, fprob_fmt)], by = c("p1p2", "alg", "g"))
+tor_raw.dt <- tor.dt[, .(p1p2, alg, g, p, q50_s)]
 tor.dt <- tor.dt[, .(p1p2, alg, g, fprob_fmt, med_fmt)]
 # <- 
 tor.dt <-  dcast(tor.dt, p1p2 + alg ~ g, value.var = c("fprob_fmt", "med_fmt"))
 #tor.dt <- tor.dt[, .(p1p2, alg, fprob_fmt_1, med_fmt_1, fprob_fmt_50, med_fmt_50)]
-fwrite(tor.dt, paste(results_path, "table_of_results_raw.csv", sep="/"))
+fwrite(tor.dt, paste(output_path, "table_of_results_raw.csv", sep="/"))
 
 tor.dt
 
+# 2D plot
+ggplot(tor_raw.dt, aes(x = p, y = q50_s, color=alg)) +
+  facet_grid(vars(p1p2), vars(g)) + geom_point() +
+  theme(legend.position = "bottom")
 
-
-
+ggsave(paste(output_path, "trade_off.pdf", sep="/"), width=8, height=8)
 
 
 

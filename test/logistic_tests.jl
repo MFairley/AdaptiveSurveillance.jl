@@ -1,5 +1,6 @@
 using ForwardDiff
 using Random
+using StaticArrays
 using AdaptiveSurveillance
 
 @testset "Logistic Solver" begin
@@ -27,7 +28,7 @@ tp, Wp = 301, 20
 i = 20
 Γ = 20
 x0 = @SVector [0.01, 0.0]
-x, g = AdaptiveSurveillance.newtonβz(x0, Γ, tp, Wp, t[1:i], Wr[1:i], n)
+x, g = AdaptiveSurveillance.newtonβz(x0, Γ, tp, Wp, t[1:i], W[1:i], n)
 @test all(isfinite.(x))
 end
 
@@ -43,14 +44,14 @@ for i = 1:length(t)
         tp = i + rand(rng, 1:10)
         Wp = rand(rng, 0: n)
         @assert(Γ < tp)
-        objc, βc, zc = AdaptiveSurveillance.solve_logistic_Γ_subproblem_convex(Γ, vcat(t[1:i], tp), vcat(W[1:i], Wp), n)
+        objc, βc, zc = AdaptiveSurveillance.solve_logistic_Γ_subproblem_convex(Γ, vcat(t[1:i], tp), vcat(W[1:i], Wp), n, βu, zu)
         # objo, βo, zo = AdaptiveSurveillance.solve_logistic_Γ_subproblem_optim(Γ, tp, Wp, t[1:i], W[1:i], n)
         # @test isapprox(objo, objc, rtol=0.15)
         # @test isapprox(βo, βc, atol=1e-2)
         # @test isapprox(zo, zc, atol=1e-2)
 
         # println("i = $i, Γ = $Γ, tp = $tp, Wp = $tp")
-        obj, β, z = AdaptiveSurveillance.solve_logistic_Γ_subproblem(Γ, tp, Wp, t[1:i], W[1:i], n)
+        obj, β, z = AdaptiveSurveillance.solve_logistic_Γ_subproblem(Γ, tp, Wp, t[1:i], W[1:i], n, βu, zu)
         @test isapprox(obj, objc, rtol=0.15)
         @test isapprox(β, βc, atol=1e-2)
         @test isapprox(z, zc, atol=1e-2)
@@ -60,21 +61,21 @@ end
 
 @testset "Profile Likelihood" begin
 ti, tp = 2, 3 # time at prediction, time to predict
-plot_profile_likelihood(tp, t[1:ti], W[1:ti], n, path = save_path)
+plot_profile_likelihood(tp, t[1:ti], W[1:ti], n, βu, zu, path = save_path)
 
 ti, tp = 2, 12
-plot_profile_likelihood(tp, t[1:ti], W[1:ti], n, path = save_path)
+plot_profile_likelihood(tp, t[1:ti], W[1:ti], n, βu, zu, path = save_path)
 
 ti, tp = 50, 51
-plot_profile_likelihood(tp, t[1:ti], W[1:ti], n, path = save_path)
+plot_profile_likelihood(tp, t[1:ti], W[1:ti], n, βu, zu, path = save_path)
 
 ti, tp = 50, 60
-plot_profile_likelihood(tp, t[1:ti], W[1:ti], n, path = save_path)
+plot_profile_likelihood(tp, t[1:ti], W[1:ti], n, βu, zu, path = save_path)
 
 ti, tp = 150, 151
-plot_profile_likelihood(tp, t[1:ti], W[1:ti], n, path = save_path)
+plot_profile_likelihood(tp, t[1:ti], W[1:ti], n, βu, zu, path = save_path)
 
 ti, tp = 150, 160
-plot_profile_likelihood(tp, t[1:ti], W[1:ti], n, path = save_path)
+plot_profile_likelihood(tp, t[1:ti], W[1:ti], n, βu, zu, path = save_path)
 end
 end

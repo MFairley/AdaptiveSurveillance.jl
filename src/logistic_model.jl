@@ -7,57 +7,57 @@ using FastClosures
 using LinearAlgebra
 using Plots
 
-const ux = @SVector [0.1, logit(0.1)] # upper bounds for β and z <- make this optonal!
-const β0c = ux[1] / 10.0 # initial guess for β
-const z0c = ux[2] - 1.0 # initial guess for z
+# const ux = @SVector [0.1, logit(0.1)] # upper bounds for β and z <- make this optonal!
+# const β0c = 0.1 / 10.0 # initial guess for β
+# const z0c = logit(0.1) - 1.0 # initial guess for z
 
 ### Logistic Growth Model Subproblem Solver
-function activeset(x0, Γ::Int64, tp::Int64, Wp::Int64, t::AbstractVector{Int64}, W::AbstractVector{Int64}, n::Int64;
-    maxiters = 1000)
+function activeset(x0, Γ::Int64, tp::Int64, Wp::Int64, t::AbstractVector{Int64}, W::AbstractVector{Int64}, n::Int64,
+    βu::Float64, zu::Float64; maxiters = 1000)
 
     # Free, Free
     x, g = newtonβz(x0, Γ, tp, Wp, t, W, n)
-    !is_kkt(x, g) || return x
+    !is_kkt(x, g, βu, zu) || return x
 
     # Free, Upper
-    x0c = @SVector [x0[1], ux[2]]
+    x0c = @SVector [x0[1], zu]
     x, g = newtonβ(x0c, Γ, tp, Wp, t, W, n)
-    !is_kkt(x, g) || return x
+    !is_kkt(x, g, βu, zu) || return x
 
     # Lower, Free
     x0c = @SVector [0.0, x0[2]]
     x, g = newtonz(x0c, Γ, tp, Wp, t, W, n)
-    !is_kkt(x, g) || return x
+    !is_kkt(x, g, βu, zu) || return x
 
     # Lower, Upper
-    x = @SVector [0.0, ux[2]]
+    x = @SVector [0.0, zu]
     g = log_likelihood_grad(x, Γ, tp, Wp, t, W, n)
-    !is_kkt(x, g) || return x
+    !is_kkt(x, g, βu, zu) || return x
 
     # Upper, Free
-    x0c = @SVector [ux[1], x0[2]]
+    x0c = @SVector [βu, x0[2]]
     x, g = newtonz(x0c, Γ, tp, Wp, t, W, n)
-    !is_kkt(x, g) || return x
+    !is_kkt(x, g, βu, zu) || return x
     
-    return ux
+    return @SVector [βu, zu]
 end
 
-function is_kkt(x, g)
-    is_primal_feasible(x) && is_dual_feasible(x, g)
+function is_kkt(x, g, βu, zu)
+    is_primal_feasible(x, βu, zu) && is_dual_feasible(x, g, βu, zu)
 end
 
-function is_primal_feasible(x) # add a tolerance? 
-    (0.0 <= x[1] <= ux[1]) && (x[2] <= ux[2])
+function is_primal_feasible(x, βu, zu) 
+    (0.0 <= x[1] <= βu) && (x[2] <= zu)
 end
 
-function is_dual_feasible(x, g)
-    all(lagrange_multipliers(x, g) .>= 0.0)
+function is_dual_feasible(x, g, βu, zu)
+    all(lagrange_multipliers(x, g, βu, zu) .>= 0.0)
 end
 
-function lagrange_multipliers(x, g)
+function lagrange_multipliers(x, g, βu, zu)
     λ_βl = x[1] > 0.0 ? 0.0 : g[1]
-    λ_βu = x[2] < ux[1] ? 0.0 : -g[1]
-    λ_zu = x[2] < ux[2] ? 0.0 : -g[2]
+    λ_βu = x[2] < βu ? 0.0 : -g[1]
+    λ_zu = x[2] < zu ? 0.0 : -g[2]
     return @SVector [λ_βl, λ_βu, λ_zu]
 end
 
@@ -150,44 +150,44 @@ function convergence_test(x, g, tol=1e-3)
 end
 
 function solve_logistic_Γ_subproblem(Γ::Int64, tp::Int64, Wp::Int64, t::AbstractVector{Int64}, W::AbstractVector{Int64}, n::Int64,
-    β0::Float64 = β0c, z0::Float64 = z0c)
+    βu::Float64, zu::Float64, β0::Float64 = βu/10, z0::Float64 = zu - 1.0)
 
     if Γ >= tp # so all tΓ are 0, just use standard MLE with constraint
         β = 0.0 # unindentifiable, assume a default value
-        z = min(logit((sum(W) + Wp) / (n * (length(W) + 1))), ux[2])
+        z = min(logit((sum(W) + Wp) / (n * (length(W) + 1))), βu)
         x = @SVector [β, z]
         obj = -log_likelihood(x, Γ, tp, Wp, t, W, n)
         return obj, β, z
     end
 
     x0 = @SVector [β0, z0]
-    x = activeset(x0, Γ, tp, Wp, t, W, n)
+    x = activeset(x0, Γ, tp, Wp, t, W, n, βu, zu)
     obj = -log_likelihood(x, Γ, tp, Wp, t, W, n)
 
     return obj, x[1], x[2]
 end
 
 ### Logistic Growth Model Convex.jl Subproblem Solver
-function solve_logistic_Γ_subproblem_convex(Γ, t, W, n)
+function solve_logistic_Γ_subproblem_convex(Γ, t, W, n, βu, zu)
     tΓ = max.(0, t .- Γ)
     β = Convex.Variable(Convex.Positive())
     z = Convex.Variable()
     coeff = β * tΓ + z
     obj = Convex.dot(W, coeff) - n * Convex.logisticloss(coeff)
-    problem = Convex.maximize(obj, β <= ux[1], z <= ux[2])
+    problem = Convex.maximize(obj, β <= βu, z <= zu)
     Convex.solve!(problem, () -> Mosek.Optimizer(QUIET=true), verbose=false)
     return problem.optval, Convex.evaluate(β), Convex.evaluate(z)
 end
 
 ### Logistic Growth Model Profile Likelihood Solver
 function solve_logistic(tp::Int64, Wp::Int64, t::AbstractVector{Int64}, W::AbstractVector{Int64}, n::Int64,
-    β0::Float64 = β0c, z0::Float64 = z0c)
+    βu::Float64, zu::Float64, β0::Float64 = βu/10, z0::Float64 = zu - 1.0)
     max_obj = -Inf64
     βs = 0.0
     zs = 0.0
     Γs = 0
     for Γ = 1:tp # type instability here with Threads.@threads
-        obj, β, z = solve_logistic_Γ_subproblem(Γ, tp, Wp, t, W, n, β0, z0)
+        obj, β, z = solve_logistic_Γ_subproblem(Γ, tp, Wp, t, W, n, βu, zu, β0, z0)
         β0, z0 = β, z # warm start
         if obj >= max_obj
             max_obj = obj
@@ -198,7 +198,7 @@ function solve_logistic(tp::Int64, Wp::Int64, t::AbstractVector{Int64}, W::Abstr
 end
 
 function profile_log_likelihood(tp::Int64, t::AbstractVector{Int64}, W::AbstractVector{Int64}, n::Int64,
-    β0::Float64 = β0c, z0::Float64 = z0c)
+    βu::Float64, zu::Float64, β0::Float64 = βu/10, z0::Float64 = zu - 1.0)
     # @assert(n > 0)
     # @assert all(t .>= 1) # time starts at 1
     # @assert issorted(t)
@@ -207,21 +207,21 @@ function profile_log_likelihood(tp::Int64, t::AbstractVector{Int64}, W::Abstract
     # @assert all(0 .<= W .<= n)
     lp = zeros(n + 1)
     Threads.@threads for i = 0:n
-        _, β, z, Γ = solve_logistic(tp, i, t, W, n, β0, z0)
+        _, β, z, Γ = solve_logistic(tp, i, t, W, n, βu, zu, β0, z0)
         β0, z0 = β, z # warm start
         lp[i+1] = normalized_log_likelihood(β, z, Γ, tp, i, t, W, n)
     end
     return lp
 end
 
-function profile_likelihood(tp, t, W, n)
-    lp = profile_log_likelihood(tp, t, W, n)
+function profile_likelihood(tp, t, W, n, βu, zu)
+    lp = profile_log_likelihood(tp, t, W, n, βu, zu)
     softmax!(lp)
     return lp
 end
 
-function plot_profile_likelihood(tp, t, W, n; path = "")
-    pl = profile_likelihood(tp, t, W, n)
+function plot_profile_likelihood(tp, t, W, n, βu, zu; path = "")
+    pl = profile_likelihood(tp, t, W, n, βu, zu)
     bar(0:n, pl, xlabel = "Number of Positive Tests", ylabel = "Probability", 
         legend=false, title = "Profile Likelihood for time $(tp) at time $(Int(maximum(t)))")
     savefig(joinpath(path, "profile_likelihood_$(tp)_$(Int(maximum(t))).pdf"))
