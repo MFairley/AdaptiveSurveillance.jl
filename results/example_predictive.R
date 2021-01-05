@@ -25,9 +25,10 @@ ggplot(example_pred.dt, aes(x=i, y = pl, fill = factor(tpmti))) +
   geom_col(width=1, alpha = 0.5, position = "identity") +
   xlab("Number of Positive Tests") + ylab("Probability")  +
   scale_fill_discrete(breaks = c(1, 10), name = "Time Horizon") +
+  theme_bw() + 
   theme(legend.position="bottom")
   
-ggsave("example_predictive.pdf", width = 4.5, height = 4.5)  
+ggsave("example_predictive.pdf", width = 6.5, height = 6.5)  
 
 # data for predictive distributions
 W <- c(1.0, 1.0, 1.0, 2.0, 4.0, 4.0, 3.0, 2.0, 2.0, 2.0, 0.0, 4.0, 3.0, 2.0, 2.0, 
@@ -53,8 +54,9 @@ ggplot(sample_data.dt, aes(x = t, y = W)) + geom_line() +
   xlab("Time (weeks)") + ylab(TeX("Positive count ($W_t$) out of n = 200")) +
   scale_x_continuous(limits = c(1, length(W)), breaks = c(1, 50, 100, 150, 200, 250, 300)) +
   geom_vline(xintercept = 100, color = "red") + 
-  annotate(geom="text", label=TeX("$\\Gamma_l=100$", output='character'), x = 120, y = 30, parse=TRUE)
-ggsave("example_data.pdf", width = 4.5, height = 4.5)  
+  annotate(geom="text", label=TeX("$\\Gamma_l=100$", output='character'), x = 120, y = 30, parse=TRUE) +
+  theme_bw()
+ggsave("example_data.pdf", width = 6.5, height = 6.5)  
 
 
 

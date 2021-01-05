@@ -19,7 +19,7 @@ p0_true_L[2] = parse(Float64, ARGS[5])
 const base_fn_suffix = "$(Γ_true_L[1])_$(p0_true_L[1])_$(p0_true_L[2])"
 
 # Simulation Set Up 
-const K = 2 # replications
+const K = 1000 # replications
 const maxiters = parse(Int64, ARGS[6])
 const run_comparators = parse(Bool, ARGS[7])
 
@@ -82,9 +82,9 @@ if run_comparators
 end
 
 # Logistic Profile Likelihood
-println("Starting Profile Likelihood")
-tstate_evsi = TStateEVSI(βu, logit(p0u))
-atd_evsi = alarm_time_distribution(1, obs, unobs, astate, tstate_evsi) # compile
-@time atd_evsi = alarm_time_distribution(K, obs, unobs, astate, tstate_evsi) # run
-fn = joinpath(save_path, "atd_evsi_$(βu)_$(p0u)_$(base_fn_suffix).csv")
-write_alarm_time_distribution(obs, unobs, atd_evsi, fn)
+# println("Starting Profile Likelihood")
+# tstate_evsi = TStateEVSI(βu, logit(p0u))
+# atd_evsi = alarm_time_distribution(1, obs, unobs, astate, tstate_evsi) # compile
+# @time atd_evsi = alarm_time_distribution(K, obs, unobs, astate, tstate_evsi) # run
+# fn = joinpath(save_path, "atd_evsi_$(βu)_$(p0u)_$(base_fn_suffix).csv")
+# write_alarm_time_distribution(obs, unobs, atd_evsi, fn)

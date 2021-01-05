@@ -1,3 +1,5 @@
+using StatsBase
+
 abstract type TState end
 
 struct TStateConstant <: TState
@@ -99,18 +101,22 @@ end
 
 function tfunc(t, obs, astate, afunc, tstate::TStateEVSIClairvoyant, rng_test)
     probability_alarm = zeros(obs.L)
-    for l = 1:obs.L
-        f(i) = check_astat(i, t, l, obs, astate, afunc)
-        i = searchsortedfirst(SearchV{Int}(0:obs.n, i -> f(i)), 1) - 1
-        if i > obs.n
-            probability_alarm[l] = 0.0
-            break
-        elseif i == 0
-            probability_alarm[l] = 1.0
-            break
+    if t > 2 * obs.L # warmup
+        for l = 1:obs.L
+            f(i) = check_astat(i, t, l, obs, astate, afunc)
+            i = searchsortedfirst(SearchV{Int}(0:obs.n, i -> f(i)), 1) - 1
+            if i > obs.n
+                probability_alarm[l] = 0.0
+                break
+            elseif i == 0
+                probability_alarm[l] = 1.0
+                break
+            end
+            p = logistic_prevalance(tstate.unobs.β[l], logit(tstate.unobs.p0[l]), tstate.unobs.Γ[l], t)
+            probability_alarm[l] = sum(pdf(Binomial(obs.n, p), j) for j = i+1:obs.n)
+            # println("t = $t, l = $l, i = $i, prob = $(probability_alarm[l])")
         end
-        p = logistic_prevalance(tstate.unobs.β[l], logit(tstate.unobs.p0[l]), tstate.unobs.Γ[l], t)
-        probability_alarm[l] = sum(pdf(Binomial(obs.n, p), j) for j = i+1:obs.n)
+        return sample(1:obs.L, weights(probability_alarm))#argmax(probability_alarm) # be careful about getting stuck
     end
-    return argmax(probability_alarm) # be careful about getting stuck
+    return Int(ceil(t / 2)) # this is needed otherwise will get stuck
 end

@@ -2,6 +2,7 @@ library(here)
 library(data.table)
 library(survival)
 library(survminer)
+library(pammtools)
 library(ggplot2)
 library(scales)
 library(stringr)
@@ -11,12 +12,13 @@ output_path <-  here("results", "tmp")
 
 # Experimental Setup
 # Algorithms
-algs = c("constant", "random", "thompson", "evsi", "evsi_0.05_0.05")
-alg_labels <- c("Clairvoyance", "Uniform Random", "Thompson Sampling", "Profile Likelihood", "Profile Likelihood(0.05;0.05)")
+algs = c("constant", "random", "thompson", "evsi")
+alg_labels <- c("Clairvoyance", "Uniform Random", "Thompson Sampling", "Profile Likelihood")
 # Environments
 gammas <- c(1, 50)
 p1s <- c(0.01, 0.02)
 p2s <- c(0.02, 0.01)
+p1p2_levels <- c("0.01_0.01", "0.01_0.02", "0.02_0.01")
 
 L <- 5
 header <- c(sprintf("p%d",seq(1:L)), sprintf("a%d",seq(from = 0, to = L)))
@@ -26,7 +28,7 @@ read_scenario_alg <- function(g, p1, p2, alg) {
   atd_alg.dt <- fread(paste(results_path, paste0("atd_", alg, "_", g, "_", p1, "_", p2, ".csv"), sep="/"), col.names = header)
   atd_alg.dt[, t := 1:.N]
   atd_alg.dt[, g := factor(g)]
-  atd_alg.dt[, p1p2 := factor(paste0(p1, "_", p2))]
+  atd_alg.dt[, p1p2 := factor(paste0(p1, "_", p2), levels = p1p2_levels)]
   atd_alg.dt[, alg := alg]
   return(atd_alg.dt)
 }
@@ -56,7 +58,7 @@ read_scenario_alg_ind <- function (g, p1, p2, alg) {
     }
   }
   ind.dt[, g := factor(g)]
-  ind.dt[, p1p2 := factor(paste0(p1, "_", p2))]
+  ind.dt[, p1p2 := factor(paste0(p1, "_", p2), levels = p1p2_levels)]
   ind.dt[, alg := alg]
   return(ind.dt)
 }
@@ -121,14 +123,21 @@ sfit_add.dt <- data.table(p1p2 = unique(sfit.dt$p1p2), alg = unique(sfit.dt$alg)
 sfit.dt <- rbindlist(list(sfit.dt, sfit_add.dt))[order(p1p2, alg, g, time)]
 sfit.dt[, c("alarm", "alarm_lower", "alarm_upper") := list(1 - surv, 1 - upper, 1 - lower)]
 
+
+#sfit.dt[, p1p2 := factor(p1p2, levels = p1p2_levels, labels = c(TeX("$\alpha$"), "2", "3"))]
+levels(sfit.dt$g) <- c(TeX("$\\Gamma_1=1$"), TeX("$\\Gamma_1=50$"))
+levels(sfit.dt$p1p2) <- c(TeX("$p_l^0 = 0.01, p_2^0 = 0.01$"), TeX("$p_l^0 = 0.01, p_2^0 = 0.02$"), TeX("$p_l^0 = 0.02, p_2^0 = 0.01$"))
+
 ggplot(sfit.dt, aes(x = time, y = alarm, ymin=alarm_lower, ymax=alarm_upper, fill=alg, color=alg)) +
-  facet_grid(rows = vars(p1p2), cols = vars(g)) + xlim(0, 150) +
-  geom_step() + # to do: add CI
+  facet_grid(p1p2 ~ g, labeller = label_parsed) + xlim(0, 150) +
+  geom_step() + geom_stepribbon(alpha=0.5, color=NA, show.legend=F) + # to do: add CI
   xlab("Time (weeks)") + ylab("Cumulative Probability of Alarm in Location 1") + 
   scale_color_discrete(name = "Algorithm") + 
+  theme_bw() +
   theme(legend.position = "bottom")
+  
 
-ggsave(paste(output_path, "survival_curves.pdf", sep="/"), width=8, height=8)
+ggsave(paste(output_path, "survival_curves.pdf", sep="/"), width=6.5, height=6.5)
 
 # Publication Table of Results
 fap.dt <- false_alarm_prob(atd_ind.dt)
