@@ -12,8 +12,8 @@ output_path <-  here("results", "tmp")
 
 # Experimental Setup
 # Algorithms
-algs = c("constant", "random", "thompson", "evsi")
-alg_labels <- c("Clairvoyance", "Uniform Random", "Thompson Sampling", "Profile Likelihood")
+algs = c("constant", "evsi", "thompson", "random")
+alg_labels <- c("Clairvoyance", "Profile Likelihood", "Thompson Sampling", "Uniform Random")
 # Environments
 gammas <- c(1, 50)
 p1s <- c(0.01, 0.02)

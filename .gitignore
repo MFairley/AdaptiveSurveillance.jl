@@ -25,3 +25,5 @@ Manifest.toml
 .Rproj.user
 
 tmp/
+
+.Rhistory
