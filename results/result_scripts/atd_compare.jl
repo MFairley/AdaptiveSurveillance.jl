@@ -17,7 +17,7 @@ p0_true_L[1] = parse(Float64, ARGS[4])
 p0_true_L[2] = parse(Float64, ARGS[5])
 const alarm = ARGS[6]
 
-const base_fn_suffix = "$(Γ_true_L[1])_$(p0_true_L[1])_$(p0_true_L[2])"
+const base_fn_suffix = "$(Γ_true_L[1])_$(p0_true_L[1])_$(p0_true_L[2])_$(alarm)"
 
 # Simulation Set Up 
 const K = 1000 # replications
@@ -25,9 +25,9 @@ const maxiters = parse(Int64, ARGS[7])
 const run_comparators = parse(Bool, ARGS[8])
 
 if run_comparators
-    println("Running Experiment: βu: $βu, p0u: $p0u, Outbreak Time: $(Γ_true_L[1]), p0: $(p0_true_L) WITH comparators")
+    println("Running Experiment: βu: $βu, p0u: $p0u, Outbreak Time: $(Γ_true_L[1]), p0: $(p0_true_L), Alarm: $(alarm) WITH comparators")
 else
-    println("Running Experiment: βu: $βu, p0u: $p0u, Outbreak Time: $(Γ_true_L[1]), p0: $(p0_true_L) WITHOUT comparators")
+    println("Running Experiment: βu: $βu, p0u: $p0u, Outbreak Time: $(Γ_true_L[1]), p0: $(p0_true_L), Alarm: $(alarm) WITHOUT comparators")
 end
 
 using StatsFuns
