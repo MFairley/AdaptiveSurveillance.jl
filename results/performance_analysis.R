@@ -119,7 +119,7 @@ sfit <-  survfit(Surv(t, status) ~ alg + g + p1p2, data = atd_ind.dt)
 # Publication plot of survival curves
 sfit.dt <- data.table(surv_summary(sfit, data = atd_ind.dt))[, .(p1p2, alg, g, time, surv, upper, lower)]
 # add first points of 1.0
-sfit_add.dt <- data.table(p1p2 = unique(sfit.dt$p1p2), alg = unique(sfit.dt$alg), g = unique(sfit.dt$g), time = 0, surv = 1.0, upper = 1.0, lower = 1.0)
+sfit_add.dt <- data.table(CJ(p1p2 = unique(sfit.dt$p1p2), alg = unique(sfit.dt$alg), g = unique(sfit.dt$g), time = 0, surv = 1.0, upper = 1.0, lower = 1.0))
 sfit.dt <- rbindlist(list(sfit.dt, sfit_add.dt))[order(p1p2, alg, g, time)]
 sfit.dt[, c("alarm", "alarm_lower", "alarm_upper") := list(1 - surv, 1 - upper, 1 - lower)]
 
@@ -128,15 +128,19 @@ sfit.dt[, c("alarm", "alarm_lower", "alarm_upper") := list(1 - surv, 1 - upper, 
 levels(sfit.dt$g) <- c(TeX("$\\Gamma_1=1$"), TeX("$\\Gamma_1=50$"))
 levels(sfit.dt$p1p2) <- c(TeX("$p_l^0 = 0.01, p_2^0 = 0.01$"), TeX("$p_l^0 = 0.01, p_2^0 = 0.02$"), TeX("$p_l^0 = 0.02, p_2^0 = 0.01$"))
 
+vlines.dt <- data.table(g = levels(sfit.dt$g), vline = c(1, 50))
+
 ggplot(sfit.dt, aes(x = time, y = alarm, ymin=alarm_lower, ymax=alarm_upper, fill=alg, color=alg)) +
   facet_grid(p1p2 ~ g, labeller = label_parsed) + xlim(0, 150) +
   geom_step() + geom_stepribbon(alpha=0.5, color=NA, show.legend=F) + # to do: add CI
+  geom_vline(aes(xintercept = vline), data=vlines.dt, color = "red") + 
   xlab("Time (weeks)") + ylab("Cumulative Probability of Alarm in Location 1") + 
   scale_color_discrete(name = "Algorithm") + 
   theme_bw() +
   theme(legend.position = "bottom")
   
 
+#ggsave(paste(output_path, "survival_curves.pdf", sep="/"), width=12, height=6)
 ggsave(paste(output_path, "survival_curves.pdf", sep="/"), width=6.5, height=6.5)
 
 # Publication Table of Results

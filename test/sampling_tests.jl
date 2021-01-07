@@ -9,7 +9,8 @@ obs = StateObservable(L, n, maxiters)
 unobs = StateUnobservable(β_true_L, p0_true_L, Γ_true_L)
 
 # Alarm State
-astate = AStateIsotonic(α)
+# astate = AStateIsotonic(α)
+astate = AStateLogistic(α, βu, zu)
 
 # Sampling Policy Tests
 # Constant

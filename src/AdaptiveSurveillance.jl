@@ -18,6 +18,7 @@ export StateObservable
 export StateUnobservable
 
 export AStateIsotonic
+export AStateLogistic
 
 export TStateConstant
 export TStateRandom
