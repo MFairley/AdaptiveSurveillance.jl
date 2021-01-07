@@ -48,7 +48,7 @@ function astat_logistic(t::AbstractVector{Int64}, W::AbstractVector{Int64}, n, Î
     pcon = sum(W) / (n * n_visits)
     lcon = sum(logpdf(Binomial(n, pcon), W[i]) for i = 1:n_visits)
     
-    tp = t[end]
+    tp = t[end] # must be end time
     Wp = W[end]
     t = @view(t[1:end-1])
     W = @view(W[1:end-1])
