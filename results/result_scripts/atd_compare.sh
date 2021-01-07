@@ -31,5 +31,5 @@ case $SLURM_ARRAY_TASK_ID in
     16) julia results/result_scripts/atd_compare.jl 0.1 0.1 1 0.02 0.01 L 1000 1 ;;
     17) julia results/result_scripts/atd_compare.jl 0.1 0.1 50 0.01 0.01 L 1000 1 ;;
     18) julia results/result_scripts/atd_compare.jl 0.1 0.1 50 0.01 0.02 L 30000 1 ;;
-    19) julia results/result_scripts/atd_compare.jl 0.1 0.1 50 0.02 0.01 L 2 1000 ;;
+    19) julia results/result_scripts/atd_compare.jl 0.1 0.1 50 0.02 0.01 L 2 1000 1 ;;
 esac
