@@ -38,8 +38,8 @@ end
 
 function afunc(t::Int64, obs::StateObservable, astate::AStateLogistic)
     l = obs.x[t]
-    past_times = @view((1:obs.maxiters)[obs.x .== l])
-    past_counts = @view(obs.W[obs.x .== l])
+    past_times = @views((1:obs.maxiters)[obs.x .== l])
+    past_counts = @views(obs.W[obs.x .== l])
     return astat_logistic(past_times, past_counts, obs.n, astate.βu, astate.zu) > log(astate.α)
 end
 
@@ -50,9 +50,9 @@ function astat_logistic(t::AbstractVector{Int64}, W::AbstractVector{Int64}, n, �
     
     tp = t[end] # must be end time
     Wp = W[end]
-    t = @view(t[1:end-1])
-    W = @view(W[1:end-1])
-    _, β, z, Γ = solve_logistic(tp, Wp, t, W, n, βu, zu)
+    ts = @view(t[1:end-1])
+    Ws = @view(W[1:end-1])
+    _, β, z, Γ = solve_logistic(tp, Wp, ts, Ws, n, βu, zu)
     llogistic = normalized_log_likelihood(β, z, Γ, tp, Wp, t, W, n)
     return llogistic - lcon
 end

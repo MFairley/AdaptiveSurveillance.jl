@@ -86,9 +86,9 @@ if run_comparators
 end
 
 # Logistic Profile Likelihood
-# println("Starting Profile Likelihood")
-# tstate_evsi = TStateEVSI(βu, logit(p0u))
-# atd_evsi = alarm_time_distribution(1, obs, unobs, astate, tstate_evsi) # compile
-# @time atd_evsi = alarm_time_distribution(K, obs, unobs, astate, tstate_evsi) # run
-# fn = joinpath(save_path, "atd_evsi_$(βu)_$(p0u)_$(base_fn_suffix).csv")
-# write_alarm_time_distribution(obs, unobs, atd_evsi, fn)
+println("Starting Profile Likelihood")
+tstate_evsi = TStateEVSI(βu, logit(p0u))
+atd_evsi = alarm_time_distribution(1, obs, unobs, astate, tstate_evsi) # compile
+@time atd_evsi = alarm_time_distribution(K, obs, unobs, astate, tstate_evsi) # run
+fn = joinpath(save_path, "atd_evsi_$(βu)_$(p0u)_$(base_fn_suffix).csv")
+write_alarm_time_distribution(obs, unobs, atd_evsi, fn)

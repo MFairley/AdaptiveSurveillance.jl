@@ -9,8 +9,8 @@ struct StateObservable
     L::Int64 # number of locations
     n::Int64 # number of tests in each time step
     maxiters::Int64 # the maximum number of iters we can do
-    x::Array{Int64} # location visited at each time step (our decision)
-    W::Array{Int64} # number of positive tests observed
+    x::Vector{Int64} # location visited at each time step (our decision)
+    W::Vector{Int64} # number of positive tests observed
 end
 
 function StateObservable(L, n, maxiters)
@@ -23,9 +23,9 @@ function reset(state::StateObservable)
 end
 
 struct StateUnobservable
-    β::Array{Float64} # the transmissionr ate in each location
-    p0::Array{Float64} # the initial prevalance in each location
-    Γ::Array{Int64} # the outbreak start time in each location
+    β::Vector{Float64} # the transmissionr ate in each location
+    p0::Vector{Float64} # the initial prevalance in each location
+    Γ::Vector{Int64} # the outbreak start time in each location
 end
 
 function reset(state::StateUnobservable)
