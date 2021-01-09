@@ -12,10 +12,10 @@ output_path <-  here("results", "tmp")
 
 # Experimental Setup
 # Algorithms
-algs = c("constant", "evsi_0.1_0.1", "thompson", "random")
-alg_labels <- c("Clairvoyance", "Profile Likelihood", "Thompson Sampling", "Uniform Random")
-alarms <- c("I", "L")
-alarm_labels <- c("Isotonic", "Logistic")
+algs = c("constant", "evsi_clairvoyant", "evsi_0.1_0.1", "thompson", "random")
+alg_labels <- c("Clairvoyance", "Clairvoyance PFA","Profile Likelihood", "Thompson Sampling", "Uniform Random")
+alarms <- c("I")
+alarm_labels <- c("Isotonic")
 # Environments
 gammas <- c(1, 50)
 p1s <- c(0.01, 0.02)
@@ -81,7 +81,7 @@ read_scenario_individual <- function(g, p1, p2) {
 
 # False Alarm Probability (for all locations)any location)
 false_alarm_prob <- function(atd_ind.dt, acc=0.01) {
-  fap.dt <- atd_ind.dt[, .(fa=sum((status == 1) & (t < as.numeric(as.character(g)))) + sum(status == 0), n=.N), by = .(p1p2, g, alg, alarm)]
+  fap.dt <- atd_ind.dt[, .(fa=sum((status == 1) & (t < as.numeric(as.character(g)))) + sum(status == 0), n=.N), by = .(g, p1p2, alg, alarm)]
   fap.dt[, p := fa / n]
   fap.dt[, hw := sqrt(p * (1-p) / n)]
   fap.dt[, lower := p - hw]
@@ -92,7 +92,7 @@ false_alarm_prob <- function(atd_ind.dt, acc=0.01) {
 
 # Median Conditional Delay
 median_cond_delay <- function(atd_ind.dt, g_sel, acc=1.0) {
-  sfit_delay <-  survfit(Surv(t, status) ~ p1p2 + g + alg + alarm, data = atd_ind.dt[g == g_sel], start.time = g_sel - 1)
+  sfit_delay <-  survfit(Surv(t, status) ~  g + p1p2 + alg + alarm, data = atd_ind.dt[g == g_sel], start.time = g_sel - 1)
   quantile_delay <- quantile(sfit_delay, 0.5) # median
   res_delay.dt <- data.table(data.frame(quantile_delay), keep.rownames = T)
   setnames(res_delay.dt, names(res_delay.dt), c("scenario", "q50", "low", "up"))
@@ -100,9 +100,9 @@ median_cond_delay <- function(atd_ind.dt, g_sel, acc=1.0) {
   res_delay.dt[, low_s := low - g_sel]
   res_delay.dt[, up_s := up - g_sel]
   res_delay.dt[, med_fmt := paste0(comma(q50_s, accuracy = acc), " [", comma(low_s, accuracy = acc), ", ", comma(up_s, accuracy = acc), "]")]
-  res_delay.dt[, c("alg", "g", "p1p2") := tstrsplit(scenario, ",", fixed=T)]
-  res_delay.dt[, c("alg", "g", "p1p2") := list(str_trim(gsub(".*=","",alg)), str_trim(gsub(".*=","",g)), str_trim(gsub(".*=","",p1p2)))]
-  return(res_delay.dt[, .(p1p2, g, alg, alarm, q50_s, med_fmt)])
+  res_delay.dt[, c("g", "p1p2", "alg", "alarm") := tstrsplit(scenario, ",", fixed=T)]
+  res_delay.dt[, c("g", "p1p2", "alg", "alarm") := list(str_trim(gsub(".*=","", g)), str_trim(gsub(".*=","", p1p2)), str_trim(gsub(".*=","", alg)), str_trim(gsub(".*=","", alarm)))]
+  return(res_delay.dt[, .(g, p1p2, alg, alarm, q50_s, med_fmt)])
 }
 
 ### RESULTS
@@ -120,13 +120,13 @@ for (g in gammas) {
 }
 
 # Fit survival curves
-sfit <-  survfit(Surv(t, status) ~ alg + g + p1p2 + alarm, data = atd_ind.dt)
+sfit <-  survfit(Surv(t, status) ~ g + p1p2 + alg + alarm, data = atd_ind.dt)
 
 # Publication plot of survival curves
-sfit.dt <- data.table(surv_summary(sfit, data = atd_ind.dt))[, .(p1p2, alg, g, alarm, time, surv, upper, lower)]
+sfit.dt <- data.table(surv_summary(sfit, data = atd_ind.dt))[, .(g, p1p2, alg, alarm, time, surv, upper, lower)]
 # add first points of 1.0
-sfit_add.dt <- data.table(CJ(p1p2 = unique(sfit.dt$p1p2), g = unique(sfit.dt$g), alg = unique(sfit.dt$alg), alarm = unique(sfit.dt$alarm), time = 0, surv = 1.0, upper = 1.0, lower = 1.0))
-sfit.dt <- rbindlist(list(sfit.dt, sfit_add.dt))[order(p1p2, g, alg, alarm, time)]
+sfit_add.dt <- data.table(CJ(g = unique(sfit.dt$g), p1p2 = unique(sfit.dt$p1p2), alg = unique(sfit.dt$alg), alarm = unique(sfit.dt$alarm), time = 0, surv = 1.0, upper = 1.0, lower = 1.0))
+sfit.dt <- rbindlist(list(sfit.dt, sfit_add.dt))[order(g, p1p2, alg, alarm, time)]
 sfit.dt[, c("alarm", "alarm_lower", "alarm_upper") := list(1 - surv, 1 - upper, 1 - lower)]
 
 
@@ -155,7 +155,7 @@ med1.dt <- median_cond_delay(atd_ind.dt, 1)
 med50.dt <- median_cond_delay(atd_ind.dt, 50)
 med.dt <- rbindlist(list(med1.dt, med50.dt))
 
-tor.dt <- merge(med.dt, fap.dt[, .(p1p2, g, alg, alarm, p, fprob_fmt)], by = c("p1p2", "alg", "g"))
+tor.dt <- merge(med.dt, fap.dt[, .(p1p2, g, alg, alarm, p, fprob_fmt)], by = c("p1p2", "g", "alg", "alarm"))
 tor.dt <- tor.dt[, .(p1p2, g, alg, alarm, fprob_fmt, med_fmt)]
 tor.dt <-  dcast(tor.dt, p1p2 + alg ~ g, value.var = c("fprob_fmt", "med_fmt"))
 tor.dt

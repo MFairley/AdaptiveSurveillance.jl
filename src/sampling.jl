@@ -113,7 +113,7 @@ function tfunc(t, obs, astate, afunc, tstate::TStateEVSIClairvoyant, rng_test)
                 break
             end
             p = logistic_prevalance(tstate.unobs.β[l], logit(tstate.unobs.p0[l]), tstate.unobs.Γ[l], t)
-            probability_alarm[l] = sum(pdf(Binomial(obs.n, p), j) for j = i+1:obs.n)
+            probability_alarm[l] = sum(pdf(Binomial(obs.n, p), j) for j = i:obs.n)
             # println("t = $t, l = $l, i = $i, prob = $(probability_alarm[l])")
         end
         return sample(1:obs.L, weights(probability_alarm))#argmax(probability_alarm) # be careful about getting stuck
