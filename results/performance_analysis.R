@@ -12,8 +12,10 @@ output_path <-  here("results", "tmp")
 
 # Experimental Setup
 # Algorithms
-algs = c("constant", "evsi", "thompson", "random")
+algs = c("constant", "evsi_0.1_0.1", "thompson", "random")
 alg_labels <- c("Clairvoyance", "Profile Likelihood", "Thompson Sampling", "Uniform Random")
+alarms <- c("I", "L")
+alarm_labels <- c("Isotonic", "Logistic")
 # Environments
 gammas <- c(1, 50)
 p1s <- c(0.01, 0.02)
@@ -24,27 +26,29 @@ L <- 5
 header <- c(sprintf("p%d",seq(1:L)), sprintf("a%d",seq(from = 0, to = L)))
 
 # Scenario / Experiment: g, p1, p2, alg
-read_scenario_alg <- function(g, p1, p2, alg) {
-  atd_alg.dt <- fread(paste(results_path, paste0("atd_", alg, "_", g, "_", p1, "_", p2, ".csv"), sep="/"), col.names = header)
+read_scenario_alg <- function(g, p1, p2, alg, alarm) {
+  atd_alg.dt <- fread(paste(results_path, paste0("atd_", alg, "_", g, "_", p1, "_", p2, "_", alarm,".csv"), sep="/"), col.names = header)
   atd_alg.dt[, t := 1:.N]
   atd_alg.dt[, g := factor(g)]
   atd_alg.dt[, p1p2 := factor(paste0(p1, "_", p2), levels = p1p2_levels)]
-  atd_alg.dt[, alg := alg]
+  atd_alg.dt[, alg :=  factor(alg, levels = algs, labels = alg_labels)]
+  atd_alg.dt[, alarm := factor(alarm, levels = alarms, labels = alarm_labels)]
   return(atd_alg.dt)
 }
 
-read_scenario <- function(g, p1, p2) {
+read_scenario <- function(g, p1, p2, alarm) {
   atd.dt <- data.table()
   for (a in algs) {
-    tmp.dt <- read_scenario_alg(g, p1, p2, a)
+    tmp.dt <- read_scenario_alg(g, p1, p2, a, alarm)
     atd.dt <- rbindlist(list(atd.dt, tmp.dt), use.names = T)
   }
   atd.dt[, alg := factor(alg, levels = algs, labels = alg_labels)]
+  atd.dt[, alarm := factor(alarm, levels = alarms, labels = alarm_labels)]
   return(atd.dt)
 }
 
-read_scenario_alg_ind <- function (g, p1, p2, alg) { 
-  atd.dt <- read_scenario_alg(g, p1, p2, alg)
+read_scenario_alg_ind <- function (g, p1, p2, alg, alarm) { 
+  atd.dt <- read_scenario_alg(g, p1, p2, alg, alarm)
   a0s <- atd.dt[, sum(a0)]
   if (a0s > 0) {
     stop("a0 > 0")
@@ -59,17 +63,19 @@ read_scenario_alg_ind <- function (g, p1, p2, alg) {
   }
   ind.dt[, g := factor(g)]
   ind.dt[, p1p2 := factor(paste0(p1, "_", p2), levels = p1p2_levels)]
-  ind.dt[, alg := alg]
+  ind.dt[, alg := factor(alg, levels = algs, labels = alg_labels)]
+  ind.dt[, alarm := factor(alarm, levels = alarms, labels = alarm_labels)]
   return(ind.dt)
 }
 
-read_scenario_individual <- function(g, p1, p2) {
+read_scenario_individual <- function(g, p1, p2, alarm) {
   atd.dt <- data.table()
   for (a in algs) {
-    tmp.dt <- read_scenario_alg_ind(g, p1, p2, a)
+    tmp.dt <- read_scenario_alg_ind(g, p1, p2, a, alarm)
     atd.dt <- rbindlist(list(atd.dt, tmp.dt), use.names = T)
   }
   atd.dt[, alg := factor(alg, levels = algs, labels = alg_labels)]
+  atd.dt[, alarm := factor(alarm, levels = alarms, labels = alarm_labels)]
   return(atd.dt)
 }
 
@@ -106,18 +112,20 @@ for (g in gammas) {
   for (p1 in p1s) {
     for (p2 in p2s) {
       if (!(p1 == 0.02 && p2 == 0.02)) { # did not do this combo
-        tmp.dt <- read_scenario_individual(g, p1, p2)
-        atd_ind.dt <- rbindlist(list(atd_ind.dt, tmp.dt))
+        for (a in alarms) {
+          tmp.dt <- read_scenario_individual(g, p1, p2, a)
+          atd_ind.dt <- rbindlist(list(atd_ind.dt, tmp.dt))
+        }
       }
     }
   }
 }
 
 # Fit survival curves
-sfit <-  survfit(Surv(t, status) ~ alg + g + p1p2, data = atd_ind.dt)
+sfit <-  survfit(Surv(t, status) ~ alg + g + p1p2 + alarm, data = atd_ind.dt)
 
 # Publication plot of survival curves
-sfit.dt <- data.table(surv_summary(sfit, data = atd_ind.dt))[, .(p1p2, alg, g, time, surv, upper, lower)]
+sfit.dt <- data.table(surv_summary(sfit, data = atd_ind.dt))[, .(p1p2, alg, g, alarm, time, surv, upper, lower)]
 # add first points of 1.0
 sfit_add.dt <- data.table(CJ(p1p2 = unique(sfit.dt$p1p2), alg = unique(sfit.dt$alg), g = unique(sfit.dt$g), time = 0, surv = 1.0, upper = 1.0, lower = 1.0))
 sfit.dt <- rbindlist(list(sfit.dt, sfit_add.dt))[order(p1p2, alg, g, time)]

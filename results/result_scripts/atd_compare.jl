@@ -53,9 +53,12 @@ obs = StateObservable(L, n, maxiters)
 unobs = unobs = StateUnobservable(β_true_L, p0_true_L, Γ_true_L)
 
 # Alarm State
-astate = AStateIsotonic(α)
 if alarm == "L"
     astate = AStateLogistic(α, βu, logit(p0u))
+elseif alarm == "I"
+    astate = AStateIsotonic(α)
+else
+    error("Invalid alarm specification")
 end
 
 # Sampling Policices
