@@ -29,21 +29,21 @@ header <- c(sprintf("p%d",seq(1:L)), sprintf("a%d",seq(from = 0, to = L)))
 read_scenario_alg <- function(g, p1, p2, alg, alarm) {
   atd_alg.dt <- fread(paste(results_path, paste0("atd_", alg, "_", g, "_", p1, "_", p2, "_", alarm,".csv"), sep="/"), col.names = header)
   atd_alg.dt[, t := 1:.N]
-  atd_alg.dt[, g := factor(g)]
+  atd_alg.dt[, g := factor(g, levels = gammas, labels = gammas)]
   atd_alg.dt[, p1p2 := factor(paste0(p1, "_", p2), levels = p1p2_levels)]
   atd_alg.dt[, alg :=  factor(alg, levels = algs, labels = alg_labels)]
   atd_alg.dt[, alarm := factor(alarm, levels = alarms, labels = alarm_labels)]
   return(atd_alg.dt)
 }
 
-read_scenario <- function(g, p1, p2, alarm) {
+read_scenario <- function(g, p1, p2) {
   atd.dt <- data.table()
   for (a in algs) {
-    tmp.dt <- read_scenario_alg(g, p1, p2, a, alarm)
-    atd.dt <- rbindlist(list(atd.dt, tmp.dt), use.names = T)
+    for (al in alarms) {
+      tmp.dt <- read_scenario_alg(g, p1, p2, a, al)
+     atd.dt <- rbindlist(list(atd.dt, tmp.dt), use.names = T)
   }
-  atd.dt[, alg := factor(alg, levels = algs, labels = alg_labels)]
-  atd.dt[, alarm := factor(alarm, levels = alarms, labels = alarm_labels)]
+  }
   return(atd.dt)
 }
 
@@ -61,27 +61,27 @@ read_scenario_alg_ind <- function (g, p1, p2, alg, alarm) {
       ind.dt <- rbindlist(list(ind.dt, tmp.dt), use.names = T)
     }
   }
-  ind.dt[, g := factor(g)]
+  ind.dt[, g := factor(g, levels = gammas, labels = gammas)]
   ind.dt[, p1p2 := factor(paste0(p1, "_", p2), levels = p1p2_levels)]
-  ind.dt[, alg := factor(alg, levels = algs, labels = alg_labels)]
+  ind.dt[, alg :=  factor(alg, levels = algs, labels = alg_labels)]
   ind.dt[, alarm := factor(alarm, levels = alarms, labels = alarm_labels)]
   return(ind.dt)
 }
 
-read_scenario_individual <- function(g, p1, p2, alarm) {
+read_scenario_individual <- function(g, p1, p2) {
   atd.dt <- data.table()
   for (a in algs) {
-    tmp.dt <- read_scenario_alg_ind(g, p1, p2, a, alarm)
-    atd.dt <- rbindlist(list(atd.dt, tmp.dt), use.names = T)
+    for (al in alarms) {
+      tmp.dt <- read_scenario_alg_ind(g, p1, p2, a, al)
+      atd.dt <- rbindlist(list(atd.dt, tmp.dt), use.names = T)
+    }
   }
-  atd.dt[, alg := factor(alg, levels = algs, labels = alg_labels)]
-  atd.dt[, alarm := factor(alarm, levels = alarms, labels = alarm_labels)]
   return(atd.dt)
 }
 
 # False Alarm Probability (for all locations)any location)
 false_alarm_prob <- function(atd_ind.dt, acc=0.01) {
-  fap.dt <- atd_ind.dt[, .(fa=sum((status == 1) & (t < as.numeric(as.character(g)))) + sum(status == 0), n=.N), by = .(p1p2, alg, g)]
+  fap.dt <- atd_ind.dt[, .(fa=sum((status == 1) & (t < as.numeric(as.character(g)))) + sum(status == 0), n=.N), by = .(p1p2, g, alg, alarm)]
   fap.dt[, p := fa / n]
   fap.dt[, hw := sqrt(p * (1-p) / n)]
   fap.dt[, lower := p - hw]
@@ -92,7 +92,7 @@ false_alarm_prob <- function(atd_ind.dt, acc=0.01) {
 
 # Median Conditional Delay
 median_cond_delay <- function(atd_ind.dt, g_sel, acc=1.0) {
-  sfit_delay <-  survfit(Surv(t, status) ~ alg + g + p1p2, data = atd_ind.dt[g == g_sel], start.time = g_sel - 1)
+  sfit_delay <-  survfit(Surv(t, status) ~ p1p2 + g + alg + alarm, data = atd_ind.dt[g == g_sel], start.time = g_sel - 1)
   quantile_delay <- quantile(sfit_delay, 0.5) # median
   res_delay.dt <- data.table(data.frame(quantile_delay), keep.rownames = T)
   setnames(res_delay.dt, names(res_delay.dt), c("scenario", "q50", "low", "up"))
@@ -102,7 +102,7 @@ median_cond_delay <- function(atd_ind.dt, g_sel, acc=1.0) {
   res_delay.dt[, med_fmt := paste0(comma(q50_s, accuracy = acc), " [", comma(low_s, accuracy = acc), ", ", comma(up_s, accuracy = acc), "]")]
   res_delay.dt[, c("alg", "g", "p1p2") := tstrsplit(scenario, ",", fixed=T)]
   res_delay.dt[, c("alg", "g", "p1p2") := list(str_trim(gsub(".*=","",alg)), str_trim(gsub(".*=","",g)), str_trim(gsub(".*=","",p1p2)))]
-  return(res_delay.dt[, .(p1p2, alg, g, q50_s, med_fmt)])
+  return(res_delay.dt[, .(p1p2, g, alg, alarm, q50_s, med_fmt)])
 }
 
 ### RESULTS
@@ -112,10 +112,8 @@ for (g in gammas) {
   for (p1 in p1s) {
     for (p2 in p2s) {
       if (!(p1 == 0.02 && p2 == 0.02)) { # did not do this combo
-        for (a in alarms) {
-          tmp.dt <- read_scenario_individual(g, p1, p2, a)
-          atd_ind.dt <- rbindlist(list(atd_ind.dt, tmp.dt))
-        }
+        tmp.dt <- read_scenario_individual(g, p1, p2)
+        atd_ind.dt <- rbindlist(list(atd_ind.dt, tmp.dt))
       }
     }
   }
@@ -127,8 +125,8 @@ sfit <-  survfit(Surv(t, status) ~ alg + g + p1p2 + alarm, data = atd_ind.dt)
 # Publication plot of survival curves
 sfit.dt <- data.table(surv_summary(sfit, data = atd_ind.dt))[, .(p1p2, alg, g, alarm, time, surv, upper, lower)]
 # add first points of 1.0
-sfit_add.dt <- data.table(CJ(p1p2 = unique(sfit.dt$p1p2), alg = unique(sfit.dt$alg), g = unique(sfit.dt$g), time = 0, surv = 1.0, upper = 1.0, lower = 1.0))
-sfit.dt <- rbindlist(list(sfit.dt, sfit_add.dt))[order(p1p2, alg, g, time)]
+sfit_add.dt <- data.table(CJ(p1p2 = unique(sfit.dt$p1p2), g = unique(sfit.dt$g), alg = unique(sfit.dt$alg), alarm = unique(sfit.dt$alarm), time = 0, surv = 1.0, upper = 1.0, lower = 1.0))
+sfit.dt <- rbindlist(list(sfit.dt, sfit_add.dt))[order(p1p2, g, alg, alarm, time)]
 sfit.dt[, c("alarm", "alarm_lower", "alarm_upper") := list(1 - surv, 1 - upper, 1 - lower)]
 
 
@@ -157,8 +155,8 @@ med1.dt <- median_cond_delay(atd_ind.dt, 1)
 med50.dt <- median_cond_delay(atd_ind.dt, 50)
 med.dt <- rbindlist(list(med1.dt, med50.dt))
 
-tor.dt <- merge(med.dt, fap.dt[, .(p1p2, alg, g, p, fprob_fmt)], by = c("p1p2", "alg", "g"))
-tor.dt <- tor.dt[, .(p1p2, alg, g, fprob_fmt, med_fmt)]
+tor.dt <- merge(med.dt, fap.dt[, .(p1p2, g, alg, alarm, p, fprob_fmt)], by = c("p1p2", "alg", "g"))
+tor.dt <- tor.dt[, .(p1p2, g, alg, alarm, fprob_fmt, med_fmt)]
 tor.dt <-  dcast(tor.dt, p1p2 + alg ~ g, value.var = c("fprob_fmt", "med_fmt"))
 tor.dt
 
