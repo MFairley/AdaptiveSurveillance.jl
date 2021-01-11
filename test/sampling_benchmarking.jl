@@ -20,12 +20,13 @@ unobs = StateUnobservable(β_true_L, p0_true_L, Γ_true_L)
 astateL = AStateLogistic(α, βu, zu)
 astateI = AStateIsotonic(α)
 
-obs.x .= 1
-obs.W .= W
+for j = 1:100
+    update!(j, 1, W[j], obs)
+end
 
 # Alarm Funcs
-# @benchmark AdaptiveSurveillance.afunc(100, $obs, $astateL)
-@benchmark AdaptiveSurveillance.afunc($100, $obs, $astateI)
+# @benchmark AdaptiveSurveillance.afunc(1, $obs, $astateL)
+# @benchmark AdaptiveSurveillance.afunc(1, $obs, $astateI)
 
 # Sampling Policy
 

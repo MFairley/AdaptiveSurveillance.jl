@@ -17,14 +17,14 @@ end
 
 function update!(t, l, W, state::StateObservable)
     append!(state.x, l)
-    append!(state.W[l], W)
     append!(state.t[l], t)
+    append!(state.W[l], W)
 end
 
 function reverse!(l, state::StateObservable)
     pop!(state.x)
-    pop!(state.W[l])
     pop!(state.t[l])
+    pop!(state.W[l])
 end
 
 function reset(state::StateObservable)

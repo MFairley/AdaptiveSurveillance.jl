@@ -14,15 +14,15 @@ function afunc(l::Int64, obs::StateObservable, astate::AStateIsotonic)
     return astat_isotonic(obs.n, obs.W[l]) > log(astate.α)
 end
 
-function astat_isotonic(n::Int64, W::AbstractVector{Int64})
+function astat_isotonic(n::Int64, W::Vector{Int64})
     # @assert all(0 .<= positive_counts .<= n)
     n_visits = length(W)
     pcon = sum(W) / (n * n_visits)
     lcon = sum(logpdf(Binomial(n, pcon), W[i]) for i = 1:n_visits)
-    y = 2 * asin.(sqrt.(W ./ n))
+    y = 2 * asin.(sqrt.(W ./ n)) # allocates memory
     ir = isotonic_regression!(y)
-    piso = sin.(ir ./ 2).^2
-    liso = sum(logpdf(Binomial(n, piso[i]), W[i]) for i = 1:n_visits)
+    # piso = sin.(ir ./ 2).^2 # allocates memory
+    liso = sum(logpdf(Binomial(n, sin(ir[i] / 2)^2), W[i]) for i = 1:n_visits)
     return liso - lcon
 end
 
