@@ -66,7 +66,7 @@ function replication(obs::StateObservable, unobs::StateUnobservable, astate, tst
 
     for t = 1:obs.maxiters
         # Sample from a location and observe positive count
-        l = tfunc(t, obs, astate, afunc, tstate, rng_test)
+        l = tfunc(t, obs, astate, tstate, rng_test)
         W = sample_test_data(t, l, obs, unobs, rng_system)
         update!(t, l, W, obs)
         

@@ -21,7 +21,7 @@ astateL = AStateLogistic(α, βu, zu)
 astateI = AStateIsotonic(α)
 
 for j = 1:100
-    update!(j, 1, W[j], obs)
+    AdaptiveSurveillance.update!(j, 1, W[j], obs)
 end
 
 # Alarm Funcs
@@ -29,6 +29,21 @@ end
 # @benchmark AdaptiveSurveillance.afunc(1, $obs, $astateI)
 
 # Sampling Policy
+tstate_constant = TStateConstant(1)
+tstate_random = TStateRandom()
+tstate_thompson = TStateThompson(ones(L, 2))
+tstate_evsi_clairvoyance = TStateEVSIClairvoyant(unobs)
+tstate_evsi = TStateEVSI(βu, zu)
+rng_test = MersenneTwister(123)
+
+AdaptiveSurveillance.tfunc(100, obs, astateI, tstate_constant, rng_test)
+@benchmark AdaptiveSurveillance.tfunc($100, $obs, $astateI, $tstate_random, $rng_test)
+@benchmark AdaptiveSurveillance.tfunc($100, $obs, $astateI, $tstate_thompson, $rng_test)
+@benchmark AdaptiveSurveillance.tfunc($100, $obs, $astateI, $tstate_evsi_clairvoyance, $rng_test)
+@benchmark AdaptiveSurveillance.tfunc($100, $obs, $astateI, $tstate_evsi, $rng_test) # allocates because of astateI
+
+@benchmark AdaptiveSurveillance.tfunc($100, $obs, $astateL, $tstate_evsi_clairvoyance, $rng_test)
+@benchmark AdaptiveSurveillance.tfunc($100, $obs, $astateL, $tstate_evsi, $rng_test)
 
 # Overall Simulation
 
