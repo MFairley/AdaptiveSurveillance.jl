@@ -1,13 +1,13 @@
 #!/bin/bash
 #SBATCH --job-name=surveillance
-#SBATCH --time=20:00:00
+#SBATCH --time=30:00:00
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=12
 #SBATCH --mem-per-cpu=1G
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=mfairley@stanford.edu
-#SBATCH --array=1-18
+#SBATCH --array=13-18
 ml julia
 
 case $SLURM_ARRAY_TASK_ID in

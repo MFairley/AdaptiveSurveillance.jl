@@ -14,8 +14,8 @@ output_path <-  here("results", "tmp")
 # Algorithms
 algs = c("constant", "evsi_clairvoyant", "evsi_0.1_0.1", "thompson", "random")
 alg_labels <- c("Clairvoyance", "Clairvoyance PFA","Profile Likelihood", "Thompson Sampling", "Uniform Random")
-alarms <- c("I")
-alarm_labels <- c("Isotonic")
+alarms <- c("I", "L")
+alarm_labels <- c("Isotonic", "Logistic")
 # Environments
 gammas <- c(1, 50)
 p1s <- c(0.01, 0.02)
@@ -40,9 +40,14 @@ read_scenario <- function(g, p1, p2) {
   atd.dt <- data.table()
   for (a in algs) {
     for (al in alarms) {
-      tmp.dt <- read_scenario_alg(g, p1, p2, a, al)
-     atd.dt <- rbindlist(list(atd.dt, tmp.dt), use.names = T)
-  }
+      fn <- paste(results_path, paste0("atd_", a, "_", g, "_", p1, "_", p2, "_", al,".csv"), sep="/")
+      if (file.exists(fn)) {
+        tmp.dt <- read_scenario_alg(g, p1, p2, a, al)
+        atd.dt <- rbindlist(list(atd.dt, tmp.dt), use.names = T)
+      } else {
+        warning(paste(fn, "does not exist"))
+      }
+    }
   }
   return(atd.dt)
 }
@@ -51,7 +56,7 @@ read_scenario_alg_ind <- function (g, p1, p2, alg, alarm) {
   atd.dt <- read_scenario_alg(g, p1, p2, alg, alarm)
   a0s <- atd.dt[, sum(a0)]
   if (a0s > 0) {
-    stop("a0 > 0")
+    warning("a0 > 0")
   }
   # assuming outbreak in location 1
   ind.dt <- data.table(t = rep(atd.dt$t, atd.dt$a1), status = 1)[!is.na(t)]
@@ -72,8 +77,13 @@ read_scenario_individual <- function(g, p1, p2) {
   atd.dt <- data.table()
   for (a in algs) {
     for (al in alarms) {
-      tmp.dt <- read_scenario_alg_ind(g, p1, p2, a, al)
-      atd.dt <- rbindlist(list(atd.dt, tmp.dt), use.names = T)
+      fn <- paste(results_path, paste0("atd_", a, "_", g, "_", p1, "_", p2, "_", al,".csv"), sep="/")
+      if (file.exists(fn)) {
+        tmp.dt <- read_scenario_alg_ind(g, p1, p2, a, al)
+        atd.dt <- rbindlist(list(atd.dt, tmp.dt), use.names = T)
+      } else {
+        warning(paste(fn, "does not exist"))
+      }
     }
   }
   return(atd.dt)
@@ -112,8 +122,8 @@ for (g in gammas) {
   for (p1 in p1s) {
     for (p2 in p2s) {
       if (!(p1 == 0.02 && p2 == 0.02)) { # did not do this combo
-        tmp.dt <- read_scenario_individual(g, p1, p2)
-        atd_ind.dt <- rbindlist(list(atd_ind.dt, tmp.dt))
+            tmp.dt <- read_scenario_individual(g, p1, p2)
+            atd_ind.dt <- rbindlist(list(atd_ind.dt, tmp.dt))
       }
     }
   }
@@ -127,7 +137,7 @@ sfit.dt <- data.table(surv_summary(sfit, data = atd_ind.dt))[, .(g, p1p2, alg, a
 # add first points of 1.0
 sfit_add.dt <- data.table(CJ(g = unique(sfit.dt$g), p1p2 = unique(sfit.dt$p1p2), alg = unique(sfit.dt$alg), alarm = unique(sfit.dt$alarm), time = 0, surv = 1.0, upper = 1.0, lower = 1.0))
 sfit.dt <- rbindlist(list(sfit.dt, sfit_add.dt))[order(g, p1p2, alg, alarm, time)]
-sfit.dt[, c("alarm", "alarm_lower", "alarm_upper") := list(1 - surv, 1 - upper, 1 - lower)]
+sfit.dt[, c("alarm_surv", "alarm_surv_lower", "alarm_surv_upper") := list(1 - surv, 1 - upper, 1 - lower)]
 
 
 #sfit.dt[, p1p2 := factor(p1p2, levels = p1p2_levels, labels = c(TeX("$\alpha$"), "2", "3"))]
@@ -136,7 +146,7 @@ levels(sfit.dt$p1p2) <- c(TeX("$p_l^0 = 0.01, p_2^0 = 0.01$"), TeX("$p_l^0 = 0.0
 
 vlines.dt <- data.table(g = levels(sfit.dt$g), vline = c(1, 50))
 
-ggplot(sfit.dt, aes(x = time, y = alarm, ymin=alarm_lower, ymax=alarm_upper, fill=alg, color=alg)) +
+ggplot(sfit.dt[alarm == "Logistic"], aes(x = time, y = alarm_surv, ymin=alarm_surv_lower, ymax=alarm_surv_upper, fill=alg, color=alg)) +
   facet_grid(p1p2 ~ g, labeller = label_parsed) + xlim(0, 150) +
   geom_step() + geom_stepribbon(alpha=0.5, color=NA, show.legend=F) + # to do: add CI
   geom_vline(aes(xintercept = vline), data=vlines.dt, color = "red") + 

@@ -116,7 +116,7 @@ function tfunc(t, obs, astate, afunc, tstate::TStateEVSIClairvoyant, rng_test)
             probability_alarm[l] = sum(pdf(Binomial(obs.n, p), j) for j = i:obs.n)
             # println("t = $t, l = $l, i = $i, prob = $(probability_alarm[l])")
         end
-        return sample(1:obs.L, weights(probability_alarm))#argmax(probability_alarm) # be careful about getting stuck
+        return argmax(probability_alarm)
     end
     return Int(ceil(t / 2)) # this is needed otherwise will get stuck
 end
