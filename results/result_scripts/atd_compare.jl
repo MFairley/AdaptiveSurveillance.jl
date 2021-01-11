@@ -76,7 +76,7 @@ end
 
 function main()
     if alarm == "L"
-        run_simulation(2, astateL)
+        run_simulation(2, astateL) # precompile
         run_simulation(K, astateL)
     elseif alarm == "I"
         run_simulation(2, astateI)

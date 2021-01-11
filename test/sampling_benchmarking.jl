@@ -17,15 +17,26 @@ include("test_data.jl")
 obs = StateObservable(1, n, length(W))
 unobs = StateUnobservable(β_true_L, p0_true_L, Γ_true_L)
 
-astate = AStateLogistic(α, βu, zu)
+astateL = AStateLogistic(α, βu, zu)
+astateI = AStateIsotonic(α)
 
 obs.x .= 1
 obs.W .= W
 
-@benchmark AdaptiveSurveillance.afunc(100, obs, astate)
+# Alarm Funcs
+# @benchmark AdaptiveSurveillance.afunc(100, $obs, $astateL)
+@benchmark AdaptiveSurveillance.afunc($100, $obs, $astateI)
 
-AdaptiveSurveillance.astat_logistic(t, W, n, βu, zu)
+# Sampling Policy
 
-tp = 101
-Wp = 100
-AdaptiveSurveillance.solve_logistic(tp, Wp, t[1:100], W[1:100], n, βu, zu)
+# Overall Simulation
+
+# ATD
+
+
+
+# AdaptiveSurveillance.astat_logistic(t, W, n, βu, zu)
+
+# tp = 101
+# Wp = 100
+# AdaptiveSurveillance.solve_logistic(tp, Wp, t[1:100], W[1:100], n, βu, zu)

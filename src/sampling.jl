@@ -33,9 +33,9 @@ end
 
 function tfunc(t, obs, astate, afunc, tstate::TStateThompson, rng_test)
     if t > 1
-        l = obs.x[t - 1] # last location visited
-        tstate.beta_parameters[l, 1] += obs.W[t - 1]
-        tstate.beta_parameters[l, 2] += obs.n - obs.W[t - 1]
+        l = obs.x[t-1] # last location visited
+        tstate.beta_parameters[l, 1] += obs.W[l][end]
+        tstate.beta_parameters[l, 2] += obs.n - obs.W[l][end]
     end
     d = [Beta(tstate.beta_parameters[l, 1], tstate.beta_parameters[l, 2]) for l = 1:obs.L]
     s = rand.(rng_test, d)
@@ -60,21 +60,25 @@ Base.size(x::SearchV) = size(x.v)
 Base.axes(x::SearchV) = axes(x.v)
 Base.@propagate_inbounds Base.getindex(x::SearchV, I...) = x.f(x.v[I...])
 
-function check_astat(i, t, l, obs, astate, afunc)
-    obs.x[t] = l
-    obs.W[t] = i
-    alarm = afunc(t, obs, astate)
-    obs.x[t] = -1
-    obs.W[t] = -1
-    return return alarm
+function check_astat(i, l, obs, astate, afunc)
+    obs.W[l][end] = i
+    alarm = afunc(l, obs, astate)
+    return alarm
+end
+
+function find_threshold(t, l, obs, astate, afunc)
+    update!(t, l, 0, obs)
+    f(i) = check_astat(i, l, obs, astate, afunc)
+    i = searchsortedfirst(SearchV{Int}(0:obs.n, i -> f(i)), 1) - 1
+    reverse!(l, obs)
+    return i
 end
 
 function tfunc(t, obs, astate, afunc, tstate::TStateEVSI, rng_test)
     probability_alarm = zeros(obs.L)
     if t > 2 * obs.L # warmup
         for l = 1:obs.L
-            f(i) = check_astat(i, t, l, obs, astate, afunc)
-            i = searchsortedfirst(SearchV{Int}(0:obs.n, i -> f(i)), 1) - 1
+            i = find_threshold(t, l, obs, astate, afunc)
             if i > obs.n
                 probability_alarm[l] = 0.0
                 break
@@ -82,9 +86,7 @@ function tfunc(t, obs, astate, afunc, tstate::TStateEVSI, rng_test)
                 probability_alarm[l] = 1.0
                 break
             end
-            past_times = @view((1:obs.maxiters)[obs.x .== l])
-            past_counts = @view(obs.W[obs.x .== l])
-            probability_alarm[l] = sum(profile_likelihood(t, past_times, past_counts, obs.n, tstate.βu, tstate.zu)[i+1:end])
+            probability_alarm[l] = sum(profile_likelihood(t, obs.t[l], obs.W[l], obs.n, tstate.βu, tstate.zu)[i+1:end])
             # println("t = $t, l = $l, times = $past_times, W = $past_counts, prob = $(probability_alarm[l])")
         end
         return argmax(probability_alarm) # be careful about getting stuck
@@ -103,15 +105,7 @@ function tfunc(t, obs, astate, afunc, tstate::TStateEVSIClairvoyant, rng_test)
     probability_alarm = zeros(obs.L)
     if t > 2 * obs.L # warmup
         for l = 1:obs.L
-            f(i) = check_astat(i, t, l, obs, astate, afunc)
-            i = searchsortedfirst(SearchV{Int}(0:obs.n, i -> f(i)), 1) - 1
-            if i > obs.n
-                probability_alarm[l] = 0.0
-                break
-            elseif i == 0
-                probability_alarm[l] = 1.0
-                break
-            end
+            i = find_threshold(t, l, obs, astate, afunc)
             p = logistic_prevalance(tstate.unobs.β[l], logit(tstate.unobs.p0[l]), tstate.unobs.Γ[l], t)
             probability_alarm[l] = sum(pdf(Binomial(obs.n, p), j) for j = i:obs.n)
             # println("t = $t, l = $l, i = $i, prob = $(probability_alarm[l])")

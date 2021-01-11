@@ -10,8 +10,8 @@ end
 function reset(astate::AStateIsotonic)
 end
 
-function afunc(t::Int64, obs::StateObservable, astate::AStateIsotonic)
-    return astat_isotonic(obs.n, @view(obs.W[obs.x .== obs.x[t]])) > log(astate.α)
+function afunc(l::Int64, obs::StateObservable, astate::AStateIsotonic)
+    return astat_isotonic(obs.n, obs.W[l]) > log(astate.α)
 end
 
 function astat_isotonic(n::Int64, W::AbstractVector{Int64})
@@ -36,18 +36,14 @@ end
 function reset(astate::AStateLogistic)
 end
 
-function afunc(t::Int64, obs::StateObservable, astate::AStateLogistic)
-    l = obs.x[t]
-    past_times = @views((1:obs.maxiters)[obs.x .== l])
-    past_counts = @views(obs.W[obs.x .== l])
-    return astat_logistic(past_times, past_counts, obs.n, astate.βu, astate.zu) > log(astate.α)
+function afunc(l::Int64, obs::StateObservable, astate::AStateLogistic)
+    return astat_logistic(obs.t[l], obs.W[l], obs.n, astate.βu, astate.zu) > log(astate.α)
 end
 
 function astat_logistic(t::AbstractVector{Int64}, W::AbstractVector{Int64}, n, βu, zu)
     n_visits = length(W)
     pcon = sum(W) / (n * n_visits)
     lcon = sum(logpdf(Binomial(n, pcon), W[i]) for i = 1:n_visits)
-    
     tp = t[end] # must be end time
     Wp = W[end]
     ts = @view(t[1:end-1])

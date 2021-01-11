@@ -9,17 +9,28 @@ struct StateObservable
     L::Int64 # number of locations
     n::Int64 # number of tests in each time step
     maxiters::Int64 # the maximum number of iters we can do
-    x::Vector{Int64} # location visited at each time step (our decision)
-    W::Vector{Int64} # number of positive tests observed
+    x::Vector{Int64} # which location we visited (our decision)
+    t::Vector{Vector{Int64}} # times corresponding to when tests collected
+    W::Vector{Vector{Int64}} # number of positive tests observed
+    StateObservable(L, n, maxiters) = new(L, n, maxiters, [], [[] for i = 1:L], [[] for i = 1:L])
 end
 
-function StateObservable(L, n, maxiters)
-    StateObservable(L, n, maxiters, ones(Int64, maxiters) * -1, ones(Int64, maxiters) * -1)
+function update!(t, l, W, state::StateObservable)
+    append!(state.x, l)
+    append!(state.W[l], W)
+    append!(state.t[l], t)
+end
+
+function reverse!(l, state::StateObservable)
+    pop!(state.x)
+    pop!(state.W[l])
+    pop!(state.t[l])
 end
 
 function reset(state::StateObservable)
-    state.x .= -1
-    state.W .= -1
+    empty!(state.x)
+    empty!.(state.t)
+    empty!.(state.W)
 end
 
 struct StateUnobservable
@@ -55,11 +66,12 @@ function replication(obs::StateObservable, unobs::StateUnobservable, astate, tst
 
     for t = 1:obs.maxiters
         # Sample from a location and observe positive count
-        obs.x[t] = tfunc(t, obs, astate, afunc, tstate, rng_test)
-        obs.W[t] = sample_test_data(t, obs.x[t], obs, unobs, rng_system)
-
+        l = tfunc(t, obs, astate, afunc, tstate, rng_test)
+        W = sample_test_data(t, l, obs, unobs, rng_system)
+        update!(t, l, W, obs)
+        
         # Check for an alarm in that location (assume alarm static for unchanged locations)
-        !afunc(t, obs, astate) || return t, obs.x[t], t < unobs.Γ[obs.x[t]], max(0, t - unobs.Γ[obs.x[t]])
+        !afunc(l, obs, astate) || return t, l, t < unobs.Γ[l], max(0, t - unobs.Γ[l])
     end
     if warn
         @warn "The maximum number of time steps, $maxiters, reached."
