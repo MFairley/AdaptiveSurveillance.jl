@@ -9,7 +9,7 @@
 #SBATCH --mail-user=mfairley@stanford.edu
 #SBATCH --array=13-18
 ml julia
-
+# ARRAY_TASKS for mail-type if want email for every task in array
 case $SLURM_ARRAY_TASK_ID in
     # isotonic 0.1 0.1
     1) julia results/result_scripts/atd_compare.jl 0.1 0.1 1 0.01 0.01 I 1000 1 ;;
@@ -26,10 +26,10 @@ case $SLURM_ARRAY_TASK_ID in
     11) julia results/result_scripts/atd_compare.jl 0.05 0.05 50 0.01 0.02 I 30000 0 ;;
     12) julia results/result_scripts/atd_compare.jl 0.05 0.05 50 0.02 0.01 I 1000 0 ;;
     # Logistic 0.1 0.1
-    13) julia results/result_scripts/atd_compare.jl 0.1 0.1 1 0.01 0.01 L 1000 1 ;; # pass
-    14) julia results/result_scripts/atd_compare.jl 0.1 0.1 1 0.01 0.02 L 1000 1 ;; # time out
-    15) julia results/result_scripts/atd_compare.jl 0.1 0.1 1 0.02 0.01 L 1000 1 ;; # pass
-    16) julia results/result_scripts/atd_compare.jl 0.1 0.1 50 0.01 0.01 L 1000 1 ;;  # pass
-    17) julia results/result_scripts/atd_compare.jl 0.1 0.1 50 0.01 0.02 L 1000 1 ;; # time out
-    18) julia results/result_scripts/atd_compare.jl 0.1 0.1 50 0.02 0.01 L 1000 1 ;; # error
+    13) julia results/result_scripts/atd_compare.jl 0.1 0.1 1 0.01 0.01 L 1000 1 ;;
+    14) julia results/result_scripts/atd_compare.jl 0.1 0.1 1 0.01 0.02 L 1000 1 ;;
+    15) julia results/result_scripts/atd_compare.jl 0.1 0.1 1 0.02 0.01 L 1000 1 ;;
+    16) julia results/result_scripts/atd_compare.jl 0.1 0.1 50 0.01 0.01 L 1000 1 ;;
+    17) julia results/result_scripts/atd_compare.jl 0.1 0.1 50 0.01 0.02 L 1000 1 ;;
+    18) julia results/result_scripts/atd_compare.jl 0.1 0.1 50 0.02 0.01 L 1000 1 ;;
 esac

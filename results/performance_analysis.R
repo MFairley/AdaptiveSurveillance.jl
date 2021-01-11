@@ -146,7 +146,7 @@ levels(sfit.dt$p1p2) <- c(TeX("$p_l^0 = 0.01, p_2^0 = 0.01$"), TeX("$p_l^0 = 0.0
 
 vlines.dt <- data.table(g = levels(sfit.dt$g), vline = c(1, 50))
 
-ggplot(sfit.dt[alarm == "Logistic"], aes(x = time, y = alarm_surv, ymin=alarm_surv_lower, ymax=alarm_surv_upper, fill=alg, color=alg)) +
+ggplot(sfit.dt[alarm == "Isotonic"], aes(x = time, y = alarm_surv, ymin=alarm_surv_lower, ymax=alarm_surv_upper, fill=alg, color=alg)) +
   facet_grid(p1p2 ~ g, labeller = label_parsed) + xlim(0, 150) +
   geom_step() + geom_stepribbon(alpha=0.5, color=NA, show.legend=F) + # to do: add CI
   geom_vline(aes(xintercept = vline), data=vlines.dt, color = "red") + 
