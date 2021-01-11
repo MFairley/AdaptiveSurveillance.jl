@@ -46,6 +46,9 @@ AdaptiveSurveillance.tfunc(100, obs, astateI, tstate_constant, rng_test)
 @benchmark AdaptiveSurveillance.tfunc($100, $obs, $astateL, $tstate_evsi, $rng_test)
 
 # Overall Simulation
+@benchmark AdaptiveSurveillance.replication($obs, $unobs, $astateL, $tstate_random)
+@benchmark AdaptiveSurveillance.replication($obs, $unobs, $astateL, $tstate_evsi)
+@benchmark AdaptiveSurveillance.replication($obs, $unobs, $astateI, $tstate_evsi)
 
 # ATD
 

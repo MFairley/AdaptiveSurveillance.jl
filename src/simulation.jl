@@ -74,7 +74,7 @@ function replication(obs::StateObservable, unobs::StateUnobservable, astate, tst
         !afunc(l, obs, astate) || return t, l, t < unobs.Γ[l], max(0, t - unobs.Γ[l])
     end
     if warn
-        @warn "The maximum number of time steps, $maxiters, reached."
+        @warn "The maximum number of time steps, $(obs.maxiters), reached."
     end
     return obs.maxiters + 1, 0, -1, -1 # unknown since there was no alarm
 end
