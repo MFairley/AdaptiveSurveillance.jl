@@ -62,7 +62,7 @@ H = AdaptiveSurveillance.log_likelihood_hess(x, Γr, tp, tr, n)
 
 # @benchmark AdaptiveSurveillance.solve_logistic($tp, $Wp, $tr, $Wr, $n)
 # @benchmark AdaptiveSurveillance.profile_log_likelihood($tp, $tr, $Wr, $n)
-# @benchmark AdaptiveSurveillance.profile_likelihood($tp, $tr, $Wr, $n)
+# @benchmark AdaptiveSurveillance.profile_likelihood($tp, $tr, $Wr, $n, $βu, $zu)
 
 # Meomory allocation tracking
 # profile_likelihood(tp, tr, Wr, n)

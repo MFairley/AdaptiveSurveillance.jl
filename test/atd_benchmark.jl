@@ -5,4 +5,4 @@ using AdaptiveSurveillance
 
 includet(joinpath(dirname(pathof(AdaptiveSurveillance)), "..", "results", "result_scripts", "atd_compare.jl"))
 
-# @benchmark run_simulation(2, astateL)
+# @benchmark run_simulation($2, $astateL)

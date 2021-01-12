@@ -4,6 +4,8 @@ abstract type TState end
 
 struct TStateConstant <: TState
     l::Int64
+    name::String
+    TStateConstant(l) = new(l, "constant")
 end
 
 function reset(tstate::TStateConstant)
@@ -14,6 +16,8 @@ function tfunc(t, obs, astate, tstate::TStateConstant, rng_test)
 end
 
 struct TStateRandom <: TState
+    name::String
+    TStateRandom() = new("random")
 end
 
 function reset(tstate::TStateRandom)
@@ -25,6 +29,8 @@ end
 
 struct TStateThompson <: TState
     beta_parameters::Array{Float64, 2}
+    name::String
+    TStateThompson(beta_parameters) = new(beta_parameters, "thompson")
 end
 
 function reset(tstate::TStateThompson)
@@ -53,6 +59,8 @@ end
 struct TStateEVSI <: TState
     βu::Float64
     zu::Float64
+    name::String
+    TStateEVSI(βu, zu) = new(βu, zu, "evsi")
 end
 
 function reset(tstate::TStateEVSI)
@@ -111,6 +119,8 @@ end
 
 struct TStateEVSIClairvoyant <: TState
     unobs::StateUnobservable
+    name::String
+    TStateEVSIClairvoyant(unobs) = new(unobs, "evsi_clairvoyant")
 end
 
 function reset(tstate::TStateEVSIClairvoyant)
@@ -122,8 +132,15 @@ function tfunc(t, obs, astate, tstate::TStateEVSIClairvoyant, rng_test)
     if t > 2 * obs.L # warmup
         for l = 1:obs.L
             i = find_threshold(t, l, obs, astate)
-            p = logistic_prevalance(tstate.unobs.β[l], logit(tstate.unobs.p0[l]), tstate.unobs.Γ[l], t)
-            p_alarm = sum(pdf(Binomial(obs.n, p), j) for j = i:obs.n)
+            p_alarm = 0.0
+            if i > obs.n
+                p_alarm = 0.0
+            elseif i == 0
+                p_alarm = 1.0
+            else
+                p = logistic_prevalance(tstate.unobs.β[l], logit(tstate.unobs.p0[l]), tstate.unobs.Γ[l], t)
+                p_alarm = sum(pdf(Binomial(obs.n, p), j) for j = i:obs.n)
+            end
             if p_alarm > p_alarm_max
                 p_alarm_max = p_alarm
                 l_alarm_max = l

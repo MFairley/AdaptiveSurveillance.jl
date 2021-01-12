@@ -1,3 +1,4 @@
+# julia atd_compare.jl 0.1 0.1 I 50 0.01 0.02 1000 150 1
 # Experiment Set Up - Constants
 const L = 5
 const β_true = 0.015008
@@ -12,19 +13,19 @@ const α = 1000 # alarm threshold, the higher, the less false positives
 # Experiment Setup - Variables
 const βu = parse(Float64, ARGS[1])
 const p0u = parse(Float64, ARGS[2])
-Γ_true_L[1] = parse(Int64, ARGS[3])
-p0_true_L[1] = parse(Float64, ARGS[4])
-p0_true_L[2] = parse(Float64, ARGS[5])
-const alarm = ARGS[6]
+const alarm = ARGS[3]
+Γ_true_L[1] = parse(Int64, ARGS[4])
+p0_true_L[1] = parse(Float64, ARGS[5])
+p0_true_L[2] = parse(Float64, ARGS[6])
 
 const base_fn_suffix = "$(Γ_true_L[1])_$(p0_true_L[1])_$(p0_true_L[2])_$(alarm)"
 
 # Simulation Set Up 
-const K = 1000 # replications
-const maxiters = parse(Int64, ARGS[7])
-const run_comparators = parse(Bool, ARGS[8])
+const K = parse(Int64, ARGS[7])
+const maxiters = parse(Int64, ARGS[8])
+const run_comparators = parse(Bool, ARGS[9])
 
-println("Running Experiment: βu: $βu, p0u: $p0u, Outbreak Time: $(Γ_true_L[1]), p0: $(p0_true_L), Alarm: $(alarm), Comparators: $(run_comparators)")
+println("Running Experiment: βu: $βu, p0u: $p0u, Alarm: $(alarm), Outbreak Time: $(Γ_true_L[1]), p0: $(p0_true_L), Replications: $(K), maxiters: $(maxiters), Comparators: $(run_comparators)")
 
 using StatsFuns
 using AdaptiveSurveillance
@@ -52,26 +53,26 @@ const unobs = StateUnobservable(β_true_L, p0_true_L, Γ_true_L)
 const astateL = AStateLogistic(α, βu, logit(p0u))
 const astateI = AStateIsotonic(α) # to do: change alpha
 
-function write_results(alg_name, atd)
-    fn = joinpath(save_path, "atd_$(alg_name)_$(base_fn_suffix).csv")
-    write_alarm_time_distribution(obs, unobs, atd, fn)
+function write_results(K, astate, tstate)
+    fn = joinpath(save_path, "atd_$(tstate.name)_$(alarm)_$(base_fn_suffix).csv")
+    alarm_time_distribution(K, obs, unobs, astate, tstate, fn)
 end
 
 function run_simulation(K, astate)
     if run_comparators
         # Constant / Clairvoyance
-        write_results("constant", alarm_time_distribution(K, obs, unobs, astate, TStateConstant(1)))
+        write_results(K, astate, TStateConstant(1))
     
         # Random
-        write_results("random", alarm_time_distribution(K, obs, unobs, astate, TStateRandom()))
+        write_results(K, astate,  TStateRandom())
     
         # Thompson Sampling
-        write_results("thompson", alarm_time_distribution(K, obs, unobs, astate, TStateThompson(ones(L, 2))))
+        write_results(K, astate, TStateThompson(ones(L, 2)))
         
         # Clairvoyant Future Probability of Alarm
-        write_results("evsi_clairvoyant", alarm_time_distribution(K, obs, unobs, astate, TStateEVSIClairvoyant(unobs)))
+        write_results(K, astate, TStateEVSIClairvoyant(unobs))
     end
-    write_results("evsi", alarm_time_distribution(K, obs, unobs, astate, TStateEVSI(βu, logit(p0u))))
+    write_results(K, astate, TStateEVSI(βu, logit(p0u)))
 end
 
 function main()
