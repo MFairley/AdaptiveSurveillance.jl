@@ -201,20 +201,26 @@ end
 
 function solve_logistic_mt(tp::Int64, Wp::Int64, t::AbstractVector{Int64}, W::AbstractVector{Int64}, n::Int64,
     βu::Float64, zu::Float64, β0::Float64 = βu/10, z0::Float64 = zu - 1.0)
-    
+    # This is a multi-threaded version of solve_logistic 
     β0_warm = Threads.Atomic{Float64}(β0)
     z0_warm = Threads.Atomic{Float64}(z0)
-    m = length(1:tp)
-    obj = zeros(m)
-    βs = zeros(m)
-    zs = zeros(m)
+    objs = fill(-Inf, Threads.nthreads())
+    βs = fill(0.0, Threads.nthreads())
+    zs = fill(0.0, Threads.nthreads())
+    Γs = fill(0, Threads.nthreads())
     Threads.@threads for Γ = 1:tp
-        obj[Γ], βs[Γ], zs[Γ] = solve_logistic_Γ_subproblem(Γ, tp, Wp, t, W, n, βu, zu, β0_warm[], z0_warm[])
-        Threads.atomic_xchg!(β0_warm, βs[Γ])
-        Threads.atomic_xchg!(z0_warm, zs[Γ])
+        obj, β, z = solve_logistic_Γ_subproblem(Γ, tp, Wp, t, W, n, βu, zu, β0_warm[], z0_warm[])
+        Threads.atomic_xchg!(β0_warm, β)
+        Threads.atomic_xchg!(z0_warm, z)
+        if obj > objs[threadid()]
+            objs[threadid()] = obj
+            βs[threadid()] = β
+            zs[threadid()] = z
+            Γs[threadid()] = Γ
+        end
     end
-    max_obj, Γ = findmax(obj)
-    return max_obj, βs[Γ], zs[Γ], Γ
+    max_obj, i = findmax(objs)
+    return max_obj, βs[i], zs[i], Γs[i]
 end
 
 function profile_log_likelihood(tp::Int64, t::AbstractVector{Int64}, W::AbstractVector{Int64}, n::Int64,

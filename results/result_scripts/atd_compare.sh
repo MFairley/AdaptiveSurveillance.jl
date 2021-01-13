@@ -12,24 +12,24 @@ ml julia
 # ARRAY_TASKS for mail-type if want email for every task in array
 case $SLURM_ARRAY_TASK_ID in
     # isotonic 0.1 0.1
-    1) julia results/result_scripts/atd_compare.jl 0.1 0.1 I 1 0.01 0.01 1000 300 1 ;;
-    2) julia results/result_scripts/atd_compare.jl 0.1 0.1 I 1 0.01 0.02 1000 300 1 ;;
-    3) julia results/result_scripts/atd_compare.jl 0.1 0.1 I 1 0.02 0.01 1000 300 1 ;;
-    4) julia results/result_scripts/atd_compare.jl 0.1 0.1 I 50 0.01 0.01 1000 300 1 ;;
-    5) julia results/result_scripts/atd_compare.jl 0.1 0.1 I 50 0.01 0.02 1000 300 1 ;;
-    6) julia results/result_scripts/atd_compare.jl 0.1 0.1 I 50 0.02 0.01 1000 300 1 ;;
+    1) julia results/result_scripts/atd_compare.jl 0.1 0.1 I 1 0.01 0.01 1000 1000 1 ;;
+    2) julia results/result_scripts/atd_compare.jl 0.1 0.1 I 1 0.01 0.02 1000 1000 1 ;;
+    3) julia results/result_scripts/atd_compare.jl 0.1 0.1 I 1 0.02 0.01 1000 1000 1 ;;
+    4) julia results/result_scripts/atd_compare.jl 0.1 0.1 I 50 0.01 0.01 1000 1000 1 ;;
+    5) julia results/result_scripts/atd_compare.jl 0.1 0.1 I 50 0.01 0.02 1000 1000 1 ;;
+    6) julia results/result_scripts/atd_compare.jl 0.1 0.1 I 50 0.02 0.01 1000 1000 1 ;;
     # isotonic 0.05 0.05
-    7) julia results/result_scripts/atd_compare.jl 0.05 0.05 I 1 0.01 0.01 1000 300 1 ;;
-    8) julia results/result_scripts/atd_compare.jl 0.05 0.05 I 1 0.01 0.02 1000 300 1 ;;
-    9) julia results/result_scripts/atd_compare.jl 0.05 0.05 I 1 0.02 0.01 1000 300 1 ;;
-    10) julia results/result_scripts/atd_compare.jl 0.05 0.05 I 50 0.01 0.01 1000 300 1 ;;
-    11) julia results/result_scripts/atd_compare.jl 0.05 0.05 I 50 0.01 0.02 1000 300 1 ;;
-    12) julia results/result_scripts/atd_compare.jl 0.05 0.05 I 50 0.02 0.01 1000 300 1 ;;
+    7) julia results/result_scripts/atd_compare.jl 0.05 0.05 I 1 0.01 0.01 1000 1000 1 ;;
+    8) julia results/result_scripts/atd_compare.jl 0.05 0.05 I 1 0.01 0.02 1000 1000 1 ;;
+    9) julia results/result_scripts/atd_compare.jl 0.05 0.05 I 1 0.02 0.01 1000 1000 1 ;;
+    10) julia results/result_scripts/atd_compare.jl 0.05 0.05 I 50 0.01 0.01 1000 1000 1 ;;
+    11) julia results/result_scripts/atd_compare.jl 0.05 0.05 I 50 0.01 0.02 1000 1000 1 ;;
+    12) julia results/result_scripts/atd_compare.jl 0.05 0.05 I 50 0.02 0.01 1000 1000 1 ;;
     # Logistic 0.1 0.1
-    13) julia results/result_scripts/atd_compare.jl 0.1 0.1 L 1 0.01 0.01 1000 300 1 ;;
-    14) julia results/result_scripts/atd_compare.jl 0.1 0.1 L 1 0.01 0.02 1000 300 1 ;;
-    15) julia results/result_scripts/atd_compare.jl 0.1 0.1 L 1 0.02 0.01 1000 300 1 ;;
-    16) julia results/result_scripts/atd_compare.jl 0.1 0.1 L 50 0.01 0.01 1000 300 1 ;;
-    17) julia results/result_scripts/atd_compare.jl 0.1 0.1 L 50 0.01 0.02 1000 300 1 ;;
-    18) julia results/result_scripts/atd_compare.jl 0.1 0.1 L 50 0.02 0.01 1000 300 1 ;;
+    13) julia results/result_scripts/atd_compare.jl 0.1 0.1 L 1 0.01 0.01 1000 1000 1 ;;
+    14) julia results/result_scripts/atd_compare.jl 0.1 0.1 L 1 0.01 0.02 1000 1000 1 ;;
+    15) julia results/result_scripts/atd_compare.jl 0.1 0.1 L 1 0.02 0.01 1000 1000 1 ;;
+    16) julia results/result_scripts/atd_compare.jl 0.1 0.1 L 50 0.01 0.01 1000 1000 1 ;;
+    17) julia results/result_scripts/atd_compare.jl 0.1 0.1 L 50 0.01 0.02 1000 1000 1 ;;
+    18) julia results/result_scripts/atd_compare.jl 0.1 0.1 L 50 0.02 0.01 1000 1000 1 ;;
 esac

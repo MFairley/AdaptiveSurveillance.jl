@@ -1,4 +1,4 @@
-# julia atd_compare.jl 0.1 0.1 I 50 0.01 0.02 1000 150 1
+# julia atd_compare.jl 0.1 0.1 I 50 0.01 0.02 1000 300 1
 # Experiment Set Up - Constants
 const L = 5
 const β_true = 0.015008
@@ -8,7 +8,8 @@ const β_true_L = ones(Float64, L) * β_true
 const p0_true_L = ones(Float64, L) * p0_true
 const Γ_true_L = ones(Int64, L) * typemax(Int64)
 
-const α = 1000 # alarm threshold, the higher, the less false positives
+const αL = 11.05 # calibrated to 0.05 fa for constant for gamma = 50
+const αI = 562.93 # alarm threshold, the higher, the less false positives
 
 # Experiment Setup - Variables
 const βu = parse(Float64, ARGS[1])
@@ -50,8 +51,8 @@ const obs = StateObservable(L, n, maxiters)
 const unobs = StateUnobservable(β_true_L, p0_true_L, Γ_true_L)
 
 # Alarm State
-const astateL = AStateLogistic(α, βu, logit(p0u))
-const astateI = AStateIsotonic(α) # to do: change alpha
+const astateL = AStateLogistic(αL, βu, logit(p0u))
+const astateI = AStateIsotonic(αI)
 
 function write_results(K, astate, tstate)
     fn = joinpath(save_path, "atd_$(tstate.name)_$(alarm)_$(base_fn_suffix).csv")
