@@ -16,7 +16,7 @@ case $SLURM_ARRAY_TASK_ID in
     2) julia results/result_scripts/atd_compare.jl 0.1 0.1 I 1 0.01 0.02 1000 300 1 1 ;;
     3) julia results/result_scripts/atd_compare.jl 0.1 0.1 I 1 0.02 0.01 1000 300 1 1 ;;
     4) julia results/result_scripts/atd_compare.jl 0.1 0.1 I 50 0.01 0.01 1000 300 1 1 ;;
-    5) julia results/result_scripts/atd_compare.jl 0.1 0.1 I 50 0.01 0.02 1000 300 1 1 ;; # completing
+    5) julia results/result_scripts/atd_compare.jl 0.1 0.1 I 50 0.01 0.02 1000 300 1 1 ;;
     6) julia results/result_scripts/atd_compare.jl 0.1 0.1 I 50 0.02 0.01 1000 300 1 1 ;; # taking a long time
     # Isotonic 0.05 0.05
     7) julia results/result_scripts/atd_compare.jl 0.05 0.05 I 1 0.01 0.01 1000 300 0 1 ;;
