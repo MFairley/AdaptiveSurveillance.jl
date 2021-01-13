@@ -34,7 +34,7 @@ struct AStateLogistic <: AState
     p0u::Float64
     zu::Float64
     name::String
-    AStateLogistic(α, βu, p0u) = new(α, βu, p0u, logit(p0u), "isotonic")
+    AStateLogistic(α, βu, p0u) = new(α, βu, p0u, logit(p0u), "logistic")
 end
 
 function reset(astate::AStateLogistic)

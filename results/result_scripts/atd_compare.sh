@@ -30,7 +30,7 @@ case $SLURM_ARRAY_TASK_ID in
     14) julia results/result_scripts/atd_compare.jl 0.1 0.1 L 1 0.01 0.02 1000 300 1 1 ;; # taking a long time
     15) julia results/result_scripts/atd_compare.jl 0.1 0.1 L 1 0.02 0.01 1000 300 1 1 ;;
     16) julia results/result_scripts/atd_compare.jl 0.1 0.1 L 50 0.01 0.01 1000 300 1 1 ;;
-    17) julia results/result_scripts/atd_compare.jl 0.1 0.1 L 50 0.01 0.02 1000 300 0 1 ;; # thompson taking a long time
-    18) julia results/result_scripts/atd_compare.jl 0.1 0.1 L 50 0.01 0.02 1000 300 1 0 ;;
+    17) julia results/result_scripts/atd_compare.jl 0.1 0.1 L 50 0.01 0.02 1000 300 0 1 ;; 
+    18) julia results/result_scripts/atd_compare.jl 0.1 0.1 L 50 0.01 0.02 1000 300 1 0 ;; # thompson taking a long time
     19) julia results/result_scripts/atd_compare.jl 0.1 0.1 L 50 0.02 0.01 1000 300 1 1;; # taking a long time
 esac
