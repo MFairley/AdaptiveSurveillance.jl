@@ -60,7 +60,7 @@ struct TStateEVSI <: TState
     βu::Float64
     zu::Float64
     name::String
-    TStateEVSI(βu, zu) = new(βu, zu, "evsi")
+    TStateEVSI(βu, zu) = new(βu, zu, "evsi_$(βu)_$(zu)")
 end
 
 function reset(tstate::TStateEVSI)

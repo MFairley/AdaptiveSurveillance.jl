@@ -1,4 +1,4 @@
-# julia atd_compare.jl 0.1 0.1 I 50 0.01 0.02 1000 300 1
+# julia atd_compare.jl 0.1 0.1 I 50 0.01 0.02 1000 300 1 1
 # Experiment Set Up - Constants
 const L = 5
 const β_true = 0.015008
@@ -19,14 +19,15 @@ const alarm = ARGS[3]
 p0_true_L[1] = parse(Float64, ARGS[5])
 p0_true_L[2] = parse(Float64, ARGS[6])
 
-const base_fn_suffix = "$(Γ_true_L[1])_$(p0_true_L[1])_$(p0_true_L[2])_$(alarm)"
+const base_fn_suffix = "$(Γ_true_L[1])_$(p0_true_L[1])_$(p0_true_L[2])"
 
 # Simulation Set Up 
 const K = parse(Int64, ARGS[7])
 const maxiters = parse(Int64, ARGS[8])
 const run_comparators = parse(Bool, ARGS[9])
+const run_evsi = parse(Bool, ARGS[10])
 
-println("Running Experiment: βu: $βu, p0u: $p0u, Alarm: $(alarm), Outbreak Time: $(Γ_true_L[1]), p0: $(p0_true_L), Replications: $(K), maxiters: $(maxiters), Comparators: $(run_comparators)")
+println("Running Experiment: βu: $βu, p0u: $p0u, Alarm: $(alarm), Outbreak Time: $(Γ_true_L[1]), p0: $(p0_true_L), Replications: $(K), maxiters: $(maxiters), Comparators: $(run_comparators), EVSI: $(run_evsi)")
 
 using StatsFuns
 using AdaptiveSurveillance
@@ -73,7 +74,9 @@ function run_simulation(K, astate)
         # Clairvoyant Future Probability of Alarm
         write_results(K, astate, TStateEVSIClairvoyant(unobs))
     end
-    write_results(K, astate, TStateEVSI(βu, logit(p0u)))
+    if run_evsi
+        write_results(K, astate, TStateEVSI(βu, logit(p0u)))
+    end
 end
 
 function main()
