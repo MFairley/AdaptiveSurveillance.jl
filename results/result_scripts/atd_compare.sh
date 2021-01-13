@@ -7,7 +7,7 @@
 #SBATCH --mem-per-cpu=1G
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=mfairley@stanford.edu
-#SBATCH --array=1-18
+#SBATCH --array=19
 ml julia
 # ARRAY_TASKS for mail-type if want email for every task in array
 case $SLURM_ARRAY_TASK_ID in
