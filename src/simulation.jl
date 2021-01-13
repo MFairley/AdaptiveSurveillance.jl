@@ -139,6 +139,7 @@ function alarm_time_distribution(K::Int64, obs::StateObservable, unobs::StateUno
         for k = 1:K # Threads.@threads 
             alarm_times[k, :] .= replication(obs, unobs, astate, tstate, k+1, k+2, warn=false, copy=false)
             writedlm(io, permutedims(vcat(base_line, alarm_times[k, :])), ",")
+            flush(io)
         end
     end
     return alarm_times
