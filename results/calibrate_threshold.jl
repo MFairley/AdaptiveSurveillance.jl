@@ -24,5 +24,5 @@ const tstate_constant = TStateConstant(1)
 
 const target = 0.05
 
-println(calibrate_alarm_threshold(target, obs, unobs, astateI, tstate_constant))
-println(calibrate_alarm_threshold(target, obs, unobs, astateL, tstate_constant, 2000, 1, 100))
+println(calibrate_alarm_threshold(target, obs, unobs, astateI, tstate_constant)) # 562.93
+println(calibrate_alarm_threshold(target, obs, unobs, astateL, tstate_constant, 2000, 1, 100)) # 11.05
