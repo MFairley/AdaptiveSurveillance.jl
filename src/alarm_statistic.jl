@@ -47,7 +47,7 @@ function astat_logistic(t::AbstractVector{Int64}, W::AbstractVector{Int64}, n, �
     Wp = W[end]
     ts = @view(t[1:end-1])
     Ws = @view(W[1:end-1])
-    _, β, z, Γ = solve_logistic(tp, Wp, ts, Ws, n, βu, zu)
+    _, β, z, Γ = solve_logistic_mt(tp, Wp, ts, Ws, n, βu, zu)
     llogistic = normalized_log_likelihood(β, z, Γ, tp, Wp, t, W, n)
     return llogistic - lcon
 end

@@ -103,7 +103,7 @@ function false_alarm_probability(K::Int64, obs::StateObservable, unobs::StateUno
     return fa_count / total_count
 end
 
-function calibrate_alarm_threshold(target_false_alarm_probability, obs, unobs, astate, tstate, K = 10000, α1 = 1, α2 = 1000, tol = 0.005)
+function calibrate_alarm_threshold(target_false_alarm_probability, obs, unobs, astate, tstate, K = 10000, α1 = 1, α2 = 1000, tol = 0.001)
     # Bisection search
     α = (α1 + α2) / 2
     astate = @set astate.α = α
