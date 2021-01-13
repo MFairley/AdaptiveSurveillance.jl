@@ -58,9 +58,10 @@ end
 
 struct TStateEVSI <: TState
     βu::Float64
+    p0u::Float64
     zu::Float64
     name::String
-    TStateEVSI(βu, zu) = new(βu, zu, "evsi_$(βu)_$(zu)")
+    TStateEVSI(βu, p0u) = new(βu, p0u, logit(p0u), "evsi_$(βu)_$(p0u)")
 end
 
 function reset(tstate::TStateEVSI)

@@ -10,14 +10,14 @@ const Γ_true_L = ones(Int64, L) * typemax(Int64)
 Γ_true_L[1] = 50
 const maxiters = 500
 const βu = 0.1
-const zu = logit(0.1)
+const p0u = 0.1
 
 const obs = StateObservable(L, n, maxiters)
 const unobs = StateUnobservable(β_true_L, p0_true_L, Γ_true_L)
 
 const α = 1000 
 const astateI = AStateIsotonic(α)
-const astateL = AStateLogistic(α, βu, zu)
+const astateL = AStateLogistic(α, βu, p0u)
 
 # Sampling Policy
 const tstate_constant = TStateConstant(1)

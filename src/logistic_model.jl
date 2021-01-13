@@ -7,10 +7,6 @@ using FastClosures
 using LinearAlgebra
 using Plots
 
-# const ux = @SVector [0.1, logit(0.1)] # upper bounds for β and z <- make this optonal!
-# const β0c = 0.1 / 10.0 # initial guess for β
-# const z0c = logit(0.1) - 1.0 # initial guess for z
-
 ### Logistic Growth Model Subproblem Solver
 function activeset(x0, Γ::Int64, tp::Int64, Wp::Int64, t::AbstractVector{Int64}, W::AbstractVector{Int64}, n::Int64,
     βu::Float64, zu::Float64; maxiters = 1000)
@@ -156,7 +152,7 @@ function solve_logistic_Γ_subproblem(Γ::Int64, tp::Int64, Wp::Int64, t::Abstra
 
     if Γ >= tp # so all tΓ are 0, just use standard MLE with constraint
         β = 0.0 # unindentifiable, assume a default value
-        z = min(logit((sum(W) + Wp) / (n * (length(W) + 1))), βu)
+        z = min(logit((sum(W) + Wp) / (n * (length(W) + 1))), zu)
         x = @SVector [β, z]
         obj = -log_likelihood(x, Γ, tp, Wp, t, W, n)
         return obj, β, z

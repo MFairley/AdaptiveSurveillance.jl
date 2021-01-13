@@ -52,30 +52,25 @@ const obs = StateObservable(L, n, maxiters)
 const unobs = StateUnobservable(β_true_L, p0_true_L, Γ_true_L)
 
 # Alarm State
-const astateL = AStateLogistic(αL, βu, logit(p0u))
+const astateL = AStateLogistic(αL, βu, p0u)
 const astateI = AStateIsotonic(αI)
-
-function write_results(K, astate, tstate)
-    fn = joinpath(save_path, "atd_$(tstate.name)_$(alarm)_$(base_fn_suffix).csv")
-    alarm_time_distribution(K, obs, unobs, astate, tstate, fn)
-end
 
 function run_simulation(K, astate)
     if run_comparators
         # Constant / Clairvoyance
-        write_results(K, astate, TStateConstant(1))
+        alarm_time_distribution(K, obs, unobs, astate, TStateConstant(1), save_path)
     
         # Random
-        write_results(K, astate,  TStateRandom())
+        alarm_time_distribution(K, obs, unobs, astate, TStateRandom(), save_path)
     
         # Thompson Sampling
-        write_results(K, astate, TStateThompson(ones(L, 2)))
+        alarm_time_distribution(K, obs, unobs, astate, TStateThompson(ones(L, 2)), save_path)
         
         # Clairvoyant Future Probability of Alarm
-        write_results(K, astate, TStateEVSIClairvoyant(unobs))
+        alarm_time_distribution(K, obs, unobs, astate, TStateEVSIClairvoyant(unobs), save_path)
     end
     if run_evsi
-        write_results(K, astate, TStateEVSI(βu, logit(p0u)))
+        alarm_time_distribution(K, obs, unobs, astate, TStateEVSI(βu, p0u), save_path)
     end
 end
 

@@ -17,7 +17,7 @@ include("test_data.jl")
 obs = StateObservable(1, n, length(W))
 unobs = StateUnobservable(β_true_L, p0_true_L, Γ_true_L)
 
-astateL = AStateLogistic(α, βu, zu)
+astateL = AStateLogistic(α, βu, p0u)
 astateI = AStateIsotonic(α)
 
 for j = 1:100
@@ -33,7 +33,7 @@ tstate_constant = TStateConstant(1)
 tstate_random = TStateRandom()
 tstate_thompson = TStateThompson(ones(L, 2))
 tstate_evsi_clairvoyance = TStateEVSIClairvoyant(unobs)
-tstate_evsi = TStateEVSI(βu, zu)
+tstate_evsi = TStateEVSI(βu, p0u)
 rng_test = MersenneTwister(123)
 
 AdaptiveSurveillance.tfunc(100, obs, astateI, tstate_constant, rng_test)
@@ -49,13 +49,3 @@ AdaptiveSurveillance.tfunc(100, obs, astateI, tstate_constant, rng_test)
 @benchmark AdaptiveSurveillance.replication($obs, $unobs, $astateL, $tstate_random)
 @benchmark AdaptiveSurveillance.replication($obs, $unobs, $astateL, $tstate_evsi)
 @benchmark AdaptiveSurveillance.replication($obs, $unobs, $astateI, $tstate_evsi)
-
-# ATD
-
-
-
-# AdaptiveSurveillance.astat_logistic(t, W, n, βu, zu)
-
-# tp = 101
-# Wp = 100
-# AdaptiveSurveillance.solve_logistic(tp, Wp, t[1:100], W[1:100], n, βu, zu)

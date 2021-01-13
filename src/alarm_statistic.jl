@@ -5,6 +5,8 @@ abstract type AState end
 
 struct AStateIsotonic <: AState
     α::Float64
+    name::String
+    AStateIsotonic(α) = new(α, "isotonic")
 end
 
 function reset(astate::AStateIsotonic)
@@ -29,7 +31,10 @@ end
 struct AStateLogistic <: AState
     α::Float64
     βu::Float64
+    p0u::Float64
     zu::Float64
+    name::String
+    AStateLogistic(α, βu, p0u) = new(α, βu, p0u, logit(p0u), "isotonic")
 end
 
 function reset(astate::AStateLogistic)

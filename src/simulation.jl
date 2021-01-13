@@ -35,7 +35,7 @@ function reset(state::StateObservable)
 end
 
 struct StateUnobservable
-    β::Vector{Float64} # the transmissionr ate in each location
+    β::Vector{Float64} # the transmission rate in each location
     p0::Vector{Float64} # the initial prevalance in each location
     Γ::Vector{Int64} # the outbreak start time in each location
 end
@@ -125,13 +125,20 @@ function calibrate_alarm_threshold(target_false_alarm_probability, obs, unobs, a
 end
 
 function alarm_time_distribution(K::Int64, obs::StateObservable, unobs::StateUnobservable, 
-    astate, tstate, filename::String)
+    astate, tstate, filepath::String)
+    
+    @assert obs.L >= 2
+    fn_env = "$(unobs.Γ[1])_$(unobs.p0[1])_$(unobs.p0[2])" # note this is missing many components currently as we assume others constant
+    fn_alg = "$(tstate.name)_$(astate.name)"
+    filename = joinpath(filepath, "atd_$(fn_alg)_$(fn_env).csv")
+    base_line = [unobs.p0[1], unobs.p0[2], unobs.Γ[1], tstate.name, astate.name]
+
     alarm_times = zeros(Int64, K, 4)
     open(filename, "w") do io
-        writedlm(io, ["t" "l" "false_alarm" "delay"], ",")
+        writedlm(io, ["p1" "p2" "g" "alg" "alarm" "t" "l" "false_alarm" "delay"], ",")
         for k = 1:K # Threads.@threads 
             alarm_times[k, :] .= replication(obs, unobs, astate, tstate, k+1, k+2, warn=false, copy=false)
-            writedlm(io, permutedims(alarm_times[k, :]), ",")
+            writedlm(io, permutedims(vcat(base_line, alarm_times[k, :])), ",")
         end
     end
     return alarm_times
