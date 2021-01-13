@@ -4,6 +4,7 @@ using Distributions
 using Base.Threads
 using StatsFuns
 using DelimitedFiles
+using Setfield
 
 struct StateObservable
     L::Int64 # number of locations
@@ -85,6 +86,44 @@ function sample_test_data(t, l, obs, unobs, rng_system)
 end
 
 ### PERFORMANCE METRICS
+function false_alarm_probability(K::Int64, obs::StateObservable, unobs::StateUnobservable, 
+    astate, tstate)
+    fa_count = 0
+    total_count = 0
+    for k = 1:K # Threads.@threads 
+        _, _, fa, _ = replication(obs, unobs, astate, tstate, k+1, k+2, warn=false, copy=false)
+        if fa >= 0
+            fa_count += fa
+            total_count += 1
+        end
+    end
+    if total_count < K
+        @warn "The total count is less than K"
+    end
+    return fa_count / total_count
+end
+
+function calibrate_alarm_threshold(target_false_alarm_probability, obs, unobs, astate, tstate, K = 10000, α1 = 1, α2 = 1000, tol = 0.005)
+    # Bisection search
+    α = (α1 + α2) / 2
+    astate = @set astate.α = α
+    fa = false_alarm_probability(K, obs, unobs, astate, tstate)
+    println(fa)
+    while abs(fa - target_false_alarm_probability) > tol
+        if fa > target_false_alarm_probability
+            α1 = α
+        else
+            α2 = α
+        end
+        α = (α1 + α2) / 2
+        astate = @set astate.α = α
+        fa = false_alarm_probability(K, obs, unobs, astate, tstate)
+        println(fa)
+        println(astate.α)
+    end
+    return α
+end
+
 function alarm_time_distribution(K::Int64, obs::StateObservable, unobs::StateUnobservable, 
     astate, tstate, filename::String)
     alarm_times = zeros(Int64, K, 4)

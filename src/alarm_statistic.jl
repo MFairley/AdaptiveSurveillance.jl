@@ -26,7 +26,6 @@ function astat_isotonic(n::Int64, W::Vector{Int64})
     return liso - lcon
 end
 
-
 struct AStateLogistic <: AState
     α::Float64
     βu::Float64

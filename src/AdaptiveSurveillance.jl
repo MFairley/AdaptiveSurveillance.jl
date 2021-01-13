@@ -26,4 +26,6 @@ export TStateThompson
 export TStateEVSI
 export TStateEVSIClairvoyant
 
+export calibrate_alarm_threshold
+
 end # module

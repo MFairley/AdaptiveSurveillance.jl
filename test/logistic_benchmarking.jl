@@ -39,7 +39,7 @@ H = AdaptiveSurveillance.log_likelihood_hess(x, Γr, tp, tr, n)
 # @code_warntype AdaptiveSurveillance.convergence_test(x, g)
 # @code_warntype AdaptiveSurveillance.solve_logistic_Γ_subproblem(Γr, tp, Wp, tr, Wr, n)
 
-# @code_warntype AdaptiveSurveillance.solve_logistic(tp, Wp, tr, Wr, n)
+# @code_warntype AdaptiveSurveillance.solve_logistic(tp, Wp, tr, Wr, n, βu, zu)
 # @code_warntype AdaptiveSurveillance.profile_log_likelihood(tp, tr, Wr, n)
 # @code_warntype AdaptiveSurveillance.profile_likelihood(tp, tr, Wr, n)
 

@@ -184,19 +184,25 @@ end
 ### Logistic Growth Model Profile Likelihood Solver
 function solve_logistic(tp::Int64, Wp::Int64, t::AbstractVector{Int64}, W::AbstractVector{Int64}, n::Int64,
     βu::Float64, zu::Float64, β0::Float64 = βu/10, z0::Float64 = zu - 1.0)
-    max_obj = -Inf64
-    βs = 0.0
-    zs = 0.0
-    Γs = 0
-    for Γ = 1:tp # type instability here with Threads.@threads
-        obj, β, z = solve_logistic_Γ_subproblem(Γ, tp, Wp, t, W, n, βu, zu, β0, z0)
-        β0, z0 = β, z # warm start
-        if obj >= max_obj
-            max_obj = obj
-            βs, zs, Γs = β, z, Γ
+    
+    β0_warm = Threads.Atomic{Float64}(β0)
+    z0_warm = Threads.Atomic{Float64}(z0)
+    max_obj = Threads.Atomic{Float64}(-Inf64)
+    βs = Threads.Atomic{Float64}(0.0)
+    zs = Threads.Atomic{Float64}(0.0)
+    Γs = Threads.Atomic{Int64}(0)
+    Threads.@threads for Γ = 1:tp
+        obj, β, z = solve_logistic_Γ_subproblem(Γ, tp, Wp, t, W, n, βu, zu, β0_warm[], z0_warm[])
+        Threads.atomic_xchg!(β0_warm, β)
+        Threads.atomic_xchg!(z0_warm, z)
+        if obj >= max_obj[]
+            Threads.atomic_xchg!(max_obj, obj)
+            Threads.atomic_xchg!(βs, β)
+            Threads.atomic_xchg!(zs, z)
+            Threads.atomic_xchg!(Γs, Γ)
         end
     end
-    return max_obj, βs, zs, Γs
+    return max_obj[], βs[], zs[], Γs[]
 end
 
 function profile_log_likelihood(tp::Int64, t::AbstractVector{Int64}, W::AbstractVector{Int64}, n::Int64,
