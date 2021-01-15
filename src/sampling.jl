@@ -91,29 +91,27 @@ function find_threshold(t, l, obs, astate)
 end
 
 function tfunc(t, obs, astate, tstate::TStateEVSI, rng_test)
-    p_alarm_max = 0.0
-    l_alarm_max = 1
+    # p_alarm_max = 0.0
+    # l_alarm_max = 1
+    p_alarm = zeros(obs.L)
     if t > 2 * obs.L # warmup
         for l = 1:obs.L
             i = find_threshold(t, l, obs, astate)
-            p_alarm = 0.0
+            p_alarm_l = 0.0
             if i > obs.n
-                p_alarm = 0.0
+                p_alarm_l = 0.0
             elseif i == 0
-                p_alarm = 1.0
+                p_alarm_l = 1.0
             else
                 pl = profile_likelihood(t, obs.t[l], obs.W[l], obs.n, tstate.βu, tstate.zu) # allocates memory
                 for j = i+1:obs.n
-                    p_alarm += pl[j]
+                    p_alarm_l += pl[j]
                 end
             end
-            if p_alarm > p_alarm_max
-                p_alarm_max = p_alarm
-                l_alarm_max = l
-            end
+            p_alarm[l] = p_alarm_l
             # println("t = $t, l = $l, times = $past_times, W = $past_counts, prob = $(probability_alarm[l])")
         end
-        return l_alarm_max # be careful about getting stuck
+        return sample(1:obs.L, weights(p_alarm))
     end
     return Int(ceil(t / 2))
 end
@@ -128,27 +126,23 @@ function reset(tstate::TStateEVSIClairvoyant)
 end
 
 function tfunc(t, obs, astate, tstate::TStateEVSIClairvoyant, rng_test)
-    p_alarm_max = 0.0
-    l_alarm_max = 1
+    p_alarm = zeros(obs.L)
     if t > 2 * obs.L # warmup
         for l = 1:obs.L
             i = find_threshold(t, l, obs, astate)
-            p_alarm = 0.0
+            p_alarm_l = 0.0
             if i > obs.n
-                p_alarm = 0.0
+                p_alarm_l = 0.0
             elseif i == 0
-                p_alarm = 1.0
+                p_alarm_l = 1.0
             else
                 p = logistic_prevalance(tstate.unobs.β[l], logit(tstate.unobs.p0[l]), tstate.unobs.Γ[l], t)
-                p_alarm = sum(pdf(Binomial(obs.n, p), j) for j = i:obs.n)
+                p_alarm_l = sum(pdf(Binomial(obs.n, p), j) for j = i:obs.n)
             end
-            if p_alarm > p_alarm_max
-                p_alarm_max = p_alarm
-                l_alarm_max = l
-            end
+            p_alarm[l] = p_alarm_l
             # println("t = $t, l = $l, i = $i, prob = $(probability_alarm[l])")
         end
-        return l_alarm_max
+        return sample(1:obs.L, weights(p_alarm))
     end
     return Int(ceil(t / 2)) # this is needed otherwise will get stuck
 end
