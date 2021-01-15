@@ -18,7 +18,7 @@ atd_ind.dt[, p1p2 := factor(paste0(p1, "_", p2), levels = c("0.01_0.01", "0.01_0
 
 # Re-order and relabel factors
 atd_ind.dt[, alg := factor(alg, levels = c("constant", "evsi_clairvoyant", "evsi_0.05_0.05", "evsi_0.1_0.1", "thompson", "random"),
-                           labels = c("Clairvoyant", "Future Alarm Pr*", "Profile Likelihood(0.05,0.05)", "Profile Likelihood", "Thompson Sampling", "Uniform Random"))]
+                           labels = c("Clairvoyant", "Future Alarm Prob", "Profile Likelihood(0.05,0.05)", "Profile Likelihood", "Thompson Sampling", "Uniform Random"))]
 
 # Set status for survival analysis
 atd_ind.dt[, status := 0]
@@ -37,7 +37,7 @@ sfit.dt[, c("alarm_surv", "alarm_surv_lower", "alarm_surv_upper") := list(1 - su
 # LaTeX Factor levels/labels
 levels(sfit.dt$g) <- c(TeX("$\\Gamma_1=1$"), TeX("$\\Gamma_1=50$"))
 levels(sfit.dt$p1p2) <- c(TeX("$p_l^0 = 0.01, p_2^0 = 0.01$"), TeX("$p_l^0 = 0.01, p_2^0 = 0.02$"), TeX("$p_l^0 = 0.02, p_2^0 = 0.01$"))
-alg_breaks <- c("Clairvoyant", "Future Alarm Pr*", "Profile Likelihood(0.05,0.05)", "Profile Likelihood", "Thompson Sampling", "Uniform Random")
+alg_breaks <- c("Clairvoyant", "Future Alarm Prob", "Profile Likelihood", "Thompson Sampling", "Uniform Random")
 
 vlines.dt <- data.table(g = levels(sfit.dt$g), vline = c(1, 50))
 # Logistic
@@ -88,7 +88,7 @@ delay.dt[, med_fmt := paste0(comma(median, accuracy = 1.0), " [", comma(lower, a
 
 tor.dt <- merge(delay.dt[, .(p1p2, g, alg, alarm, med_fmt)], fap.dt[, .(p1p2, g, alg, alarm, fprob_fmt)], by = c("p1p2", "g", "alg", "alarm"))
 tor.dt <-  dcast(tor.dt, alarm + p1p2 + alg ~ g, value.var = c("fprob_fmt", "med_fmt"))
-fwrite(tor.dt[alg %in% alg_breaks & alarm == "logistic"], paste(output_path, "table_of_results_raw.csv", sep="/"))
+fwrite(tor.dt[alg %in% alg_breaks & alarm == "isontic"], paste(output_path, "table_of_results_raw.csv", sep="/"))
 
 
 
