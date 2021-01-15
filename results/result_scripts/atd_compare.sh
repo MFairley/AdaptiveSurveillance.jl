@@ -7,7 +7,7 @@
 #SBATCH --mem-per-cpu=1G
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=mfairley@stanford.edu
-#SBATCH --array=1-19
+#SBATCH --array=1-25
 ml julia
 # ARRAY_TASKS for mail-type if want email for every task in array
 case $SLURM_ARRAY_TASK_ID in
@@ -24,7 +24,7 @@ case $SLURM_ARRAY_TASK_ID in
     9) julia results/result_scripts/atd_compare.jl 0.05 0.05 I 1 0.02 0.01 1000 300 0 1 ;;
     10) julia results/result_scripts/atd_compare.jl 0.05 0.05 I 50 0.01 0.01 1000 300 0 1 ;; # taking a long time
     11) julia results/result_scripts/atd_compare.jl 0.05 0.05 I 50 0.01 0.02 1000 300 0 1 ;; # taking a long time
-    12) julia results/result_scripts/atd_compare.jl 0.05 0.05 I 50 0.02 0.01 1000 300 0 1 ;; # taking a long time
+    12) julia results/result_scripts/atd_compare.jl 0.05 0.05 I 50 0.02 0.01 1000 300 0 1 ;;
     # Logistic 0.1 0.1
     13) julia results/result_scripts/atd_compare.jl 0.1 0.1 L 1 0.01 0.01 1000 300 1 1 ;;
     14) julia results/result_scripts/atd_compare.jl 0.1 0.1 L 1 0.01 0.02 1000 300 1 1 ;; # taking a long time
@@ -33,4 +33,11 @@ case $SLURM_ARRAY_TASK_ID in
     17) julia results/result_scripts/atd_compare.jl 0.1 0.1 L 50 0.01 0.02 1000 300 0 1 ;; 
     18) julia results/result_scripts/atd_compare.jl 0.1 0.1 L 50 0.01 0.02 1000 300 1 0 ;; # thompson taking a long time
     19) julia results/result_scripts/atd_compare.jl 0.1 0.1 L 50 0.02 0.01 1000 300 1 1;; # taking a long time
+    # Logistic 0.05 0.05
+    20) julia results/result_scripts/atd_compare.jl 0.05 0.05 L 1 0.01 0.01 1000 300 0 1 ;;
+    21) julia results/result_scripts/atd_compare.jl 0.05 0.05 L 1 0.01 0.02 1000 300 0 1 ;;
+    22) julia results/result_scripts/atd_compare.jl 0.05 0.05 L 1 0.02 0.01 1000 300 0 1 ;;
+    23) julia results/result_scripts/atd_compare.jl 0.05 0.05 L 50 0.01 0.01 1000 300 0 1 ;; # taking a long time
+    24) julia results/result_scripts/atd_compare.jl 0.05 0.05 L 50 0.01 0.02 1000 300 0 1 ;; # taking a long time
+    25) julia results/result_scripts/atd_compare.jl 0.05 0.05 L 50 0.02 0.01 1000 300 0 1 ;; # taking a long time
 esac
