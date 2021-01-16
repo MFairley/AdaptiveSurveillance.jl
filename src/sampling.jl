@@ -111,7 +111,7 @@ function tfunc(t, obs, astate, tstate::TStateEVSI, rng_test)
             p_alarm[l] = p_alarm_l
             # println("t = $t, l = $l, times = $past_times, W = $past_counts, prob = $(probability_alarm[l])")
         end
-        return sample(1:obs.L, weights(p_alarm))
+        return sample(rng_test, 1:obs.L, weights(p_alarm))
     end
     return Int(ceil(t / 2))
 end
@@ -142,7 +142,7 @@ function tfunc(t, obs, astate, tstate::TStateEVSIClairvoyant, rng_test)
             p_alarm[l] = p_alarm_l
             # println("t = $t, l = $l, i = $i, prob = $(probability_alarm[l])")
         end
-        return sample(1:obs.L, weights(p_alarm))
+        return sample(rng_test, 1:obs.L, weights(p_alarm))
     end
     return Int(ceil(t / 2)) # this is needed otherwise will get stuck
 end
