@@ -88,7 +88,7 @@ delay.dt[, med_fmt := paste0(comma(median, accuracy = 1.0), " [", comma(lower, a
 
 tor.dt <- merge(delay.dt[, .(p1p2, g, alg, alarm, med_fmt)], fap.dt[, .(p1p2, g, alg, alarm, fprob_fmt)], by = c("p1p2", "g", "alg", "alarm"))
 tor.dt <-  dcast(tor.dt, alarm + p1p2 + alg ~ g, value.var = c("fprob_fmt", "med_fmt"))
-fwrite(tor.dt[alg %in% alg_breaks & alarm == "isontic"], paste(output_path, "table_of_results_raw.csv", sep="/"))
+fwrite(tor.dt[alg %in% alg_breaks & alarm == "logistic"], paste(output_path, "table_of_results_raw.csv", sep="/"))
 
 
 
