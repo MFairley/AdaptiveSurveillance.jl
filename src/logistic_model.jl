@@ -1,7 +1,7 @@
 using Random, Distributions
 using StatsBase, StatsFuns
 using Optim, NLSolversBase, LineSearches, PositiveFactorizations
-import Convex, Mosek, MosekTools
+# import Convex, Mosek, MosekTools
 using StaticArrays
 using FastClosures
 using LinearAlgebra

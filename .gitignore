@@ -27,3 +27,4 @@ Manifest.toml
 tmp/
 
 .Rhistory
+.DS_Store

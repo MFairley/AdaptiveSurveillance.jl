@@ -4,7 +4,7 @@ using AdaptiveSurveillance
 tmp = joinpath(dirname(pathof(AdaptiveSurveillance)), "..", "test", "tmp")
 if startswith(gethostname(), "sh")
     tmp = ENV["SCRATCH"]
-elseif gethostname() != "Michaels-iMac.lan"
+elseif gethostname() != "Michaels-MBP.lan"
     tmp = ""
 end
 const save_path = tmp
