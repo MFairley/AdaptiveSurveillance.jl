@@ -1,5 +1,6 @@
 using StatsFuns
 using Distributions
+import DataStructures
 
 abstract type AState end
 
@@ -7,6 +8,7 @@ struct AStateIsotonic <: AState
     α::Float64
     name::String
     AStateIsotonic(α) = new(α, "isotonic")
+    AStateIsotonic(α, name) = new(α, name) # needed for @set, internal use only
 end
 
 function reset(astate::AStateIsotonic)
@@ -35,6 +37,7 @@ struct AStateLogistic <: AState
     zu::Float64
     name::String
     AStateLogistic(α, βu, p0u) = new(α, βu, p0u, logit(p0u), "logistic")
+    AStateLogistic(α, βu, p0u, zu, name) = new(α, βu, p0u, zu, name) # needed for @set, internal use only
 end
 
 function reset(astate::AStateLogistic)
@@ -55,4 +58,26 @@ function astat_logistic(t::AbstractVector{Int64}, W::AbstractVector{Int64}, n, �
     _, β, z, Γ = solve_logistic_mt(tp, Wp, ts, Ws, n, βu, zu)
     llogistic = normalized_log_likelihood(β, z, Γ, tp, Wp, t, W, n)
     return llogistic - lcon
+end
+
+struct AStateLogisticTopr <: AState
+    α::Float64
+    βu::Float64
+    p0u::Float64
+    zu::Float64
+    r::Int64
+    L::Int64
+    curr_stat::Vector{Float64}
+    name::String
+    AStateLogisticTopr(α, βu, p0u, r, L) = r > L ? error("r cannot be more than L") : new(α, βu, p0u, logit(p0u), r, L, zeros(L), "logistic_topr")
+    AStateLogisticTopr(α, βu, p0u, zu, r, L, curr_stat, name) = new(α, βu, p0u, zu, r, L, curr_stat, name) # needed for @set, internal use only
+end
+
+function reset(astate::AStateLogisticTopr)
+    astate.curr_stat .= 0.0
+end
+
+function afunc(l::Int64, obs::StateObservable, astate::AStateLogisticTopr)
+    astate.curr_stat[l] = astat_logistic(obs.t[l], obs.W[l], obs.n, astate.βu, astate.zu)
+    return logsumexp(DataStructures.nlargest(astate.r, astate.curr_stat)) > log(astate.α)
 end

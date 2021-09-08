@@ -24,12 +24,16 @@ const W = Int.([1.0, 1.0, 1.0, 2.0, 4.0, 4.0, 3.0, 2.0, 2.0, 2.0, 0.0, 4.0, 3.0,
 const t = collect(1:length(W))
 
 # Sampling
+const K = 2
+const calibration_maxiters = 10
 const L = 2
+const r = 1
+const lO = 1
+const Γ_lO = 1
 const β_true_L = ones(Float64, L) * β_true
 const p0_true_L = ones(Float64, L) * p0_true
-const Γ_true_L = ones(Int64, L) * typemax(Int64)
-Γ_true_L[1] = 1
 const maxiters = 150
 const βu = 1.0
 const p0u = 0.5
+const target_arl = 10
 const α = 1000 # the higher, the less false positives

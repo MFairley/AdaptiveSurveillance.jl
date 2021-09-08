@@ -6,11 +6,11 @@ using AdaptiveSurveillance
 # Problem Set Up
 # System State
 obs = StateObservable(L, n, maxiters)
-unobs = StateUnobservable(β_true_L, p0_true_L, Γ_true_L)
+unobs = StateUnobservable(β_true_L, p0_true_L, L, lO, Γ_lO)
 
 # Alarm State
 # astate = AStateIsotonic(α)
-astate = AStateLogistic(α, βu, p0u)
+astate = AStateLogisticTopr(α, βu, p0u, r, L)
 
 # Sampling Policy Tests
 # Constant
@@ -29,8 +29,14 @@ tstate_evsi_clairvoyance = TStateEVSIClairvoyant(unobs)
 tstate_evsi = TStateEVSI(βu, p0u)
 evsi_test = replication(obs, unobs, astate, tstate_evsi)
 
+# Calibration
+_ = calibrate_alarm_threshold(target_arl, obs, unobs, astate, tstate_constant, K = K, maxiters = calibration_maxiters)
+_ = calibrate_alarm_threshold(target_arl, obs, unobs, astate, tstate_random, K = K, maxiters = calibration_maxiters)
+_ = calibrate_alarm_threshold(target_arl, obs, unobs, astate, tstate_thompson, K = K, maxiters = calibration_maxiters)
+_ = calibrate_alarm_threshold(target_arl, obs, unobs, astate, tstate_evsi_clairvoyance, K = K, maxiters = calibration_maxiters)
+_ = calibrate_alarm_threshold(target_arl, obs, unobs, astate, tstate_evsi, K = K, maxiters = calibration_maxiters)
+
 # Alarm Time Distributions
-const K = 2
 atd_constant = alarm_time_distribution(K, obs, unobs, astate, tstate_constant, save_path)
 atd_random = alarm_time_distribution(K, obs, unobs, astate, tstate_random, save_path)
 atd_thompson = alarm_time_distribution(K, obs, unobs, astate, tstate_thompson, save_path)

@@ -1,10 +1,12 @@
 using Test
 using AdaptiveSurveillance
 
+const personal_hostname = "Michaels-MBP.lan"
+
 tmp = joinpath(dirname(pathof(AdaptiveSurveillance)), "..", "test", "tmp")
 if startswith(gethostname(), "sh")
     tmp = ENV["SCRATCH"]
-elseif gethostname() != "Michaels-MBP.lan"
+elseif gethostname() != personal_hostname
     tmp = ""
 end
 const save_path = tmp

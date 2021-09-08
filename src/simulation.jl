@@ -37,7 +37,11 @@ end
 struct StateUnobservable
     β::Vector{Float64} # the transmission rate in each location
     p0::Vector{Float64} # the initial prevalance in each location
+    L::Int64 # the number of locations
+    lO::Int64 # the location with the outbreak
+    Γ_lO::Int64 # the start time of the outbreak
     Γ::Vector{Int64} # the outbreak start time in each location
+    StateUnobservable(β, p0, L, lO, Γ_lO) = new(β, p0, L, lO, Γ_lO, [typemax(Int64)*(i != lO)+Γ_lO*(i == lO) for i = 1:L])
 end
 
 function reset(state::StateUnobservable)
@@ -71,11 +75,11 @@ function replication(obs::StateObservable, unobs::StateUnobservable, astate, tst
         W = sample_test_data(t, l, obs, unobs, rng_system)
         update!(t, l, W, obs)
         
-        # Check for an alarm in that location (assume alarm static for unchanged locations)
-        !afunc(l, obs, astate) || return t, l, t < unobs.Γ[l], max(0, t - unobs.Γ[l])
+        # Check for an alarm
+        !afunc(l, obs, astate) || return t, l, t < unobs.Γ[unobs.lO], max(0, t - unobs.Γ[unobs.lO])
     end
     if warn
-        @warn "The maximum number of time steps, $(obs.maxiters), reached."
+        @warn "The maximum number of time steps, $(obs.maxiters), reached for a replication. Exiting"
     end
     return obs.maxiters + 1, 0, -1, -1 # unknown since there was no alarm
 end
@@ -86,42 +90,61 @@ function sample_test_data(t, l, obs, unobs, rng_system)
 end
 
 ### PERFORMANCE METRICS
-function false_alarm_probability(K::Int64, obs::StateObservable, unobs::StateUnobservable, 
-    astate, tstate)
-    fa_count = 0
+function average_run_length(K::Int64, obs::StateObservable, unobs::StateUnobservable, 
+    astate, tstate, tol = 0.5, conf = 0.95)
+    times = zeros(K)
     total_count = 0
     for k = 1:K # Threads.@threads 
-        _, _, fa, _ = replication(obs, unobs, astate, tstate, k+1, k+2, warn=false, copy=false)
+        t, _, fa, _ = replication(obs, unobs, astate, tstate, k+1, k+2, warn=false, copy=false)
         if fa >= 0
-            fa_count += fa
+            times[k] = t
             total_count += 1
         end
     end
     if total_count < K
-        @warn "The total count is less than K"
+        @warn "The number of timestamps evaluated for ARL is less than K"
     end
-    return fa_count / total_count
+    arl = mean(times)
+    hw = norminvcdf(1 - (1 - conf) / 2) * std(times) / sqrt(K)
+    if hw > tol
+        @warn("The half-width for a $(conf) interval of $(hw) is larger than tolerance of $(tol) in the ARL calibratation.")
+    end
+    return arl, hw
 end
 
-function calibrate_alarm_threshold(target_false_alarm_probability, obs, unobs, astate, tstate, K = 10000, α1 = 1, α2 = 1000, tol = 0.001)
+function calibrate_alarm_threshold(target_arl, obs, unobs, astate, tstate; K = 1000, α1 = 1, α2 = 100, tol = 0.01, maxiters=1000)
+    unobs0 = StateUnobservable(unobs.β, unobs.p0, obs.L, 1, typemax(Int64))
     # Bisection search
+    i = 0
     α = (α1 + α2) / 2
     astate = @set astate.α = α
-    fa = false_alarm_probability(K, obs, unobs, astate, tstate)
-    println(fa)
-    while abs(fa - target_false_alarm_probability) > tol
-        if fa > target_false_alarm_probability
+    arl, hw = average_run_length(K, obs, unobs0, astate, tstate)
+
+    # Check the target is within the bounds
+    astate_low = @set astate.α = α1
+    astate_high = @set astate.α = α2
+    arl_low = average_run_length(K, obs, unobs0, astate_low, tstate)
+    println("ARL, Lower Bound for $(astate.name), $(tstate.name) = $(arl_low)")
+    arl_high = average_run_length(K, obs, unobs0, astate_high, tstate)
+    println("ARL, Upper Bound for $(astate.name), $(tstate.name) = $(arl_high)")
+    @assert arl_low <= target_arl <= arl_high "Target ARL must be within bounds"
+    
+    while abs(arl - target_arl) > tol
+        i += 1
+        if arl < target_arl
             α1 = α
         else
             α2 = α
         end
         α = (α1 + α2) / 2
         astate = @set astate.α = α
-        fa = false_alarm_probability(K, obs, unobs, astate, tstate)
-        println(fa)
-        println(astate.α)
+        arl, hw = average_run_length(K, obs, unobs0, astate, tstate)
+        if i >= maxiters
+            @warn("Maximum iterations for calibratation reached. Exiting")
+            break
+        end
     end
-    return α
+    return astate, α, arl, hw
 end
 
 function alarm_time_distribution(K::Int64, obs::StateObservable, unobs::StateUnobservable, 

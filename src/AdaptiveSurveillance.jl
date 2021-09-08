@@ -19,6 +19,7 @@ export StateUnobservable
 
 export AStateIsotonic
 export AStateLogistic
+export AStateLogisticTopr
 
 export TStateConstant
 export TStateRandom
