@@ -123,9 +123,9 @@ function calibrate_alarm_threshold(target_arl, obs, unobs, astate, tstate; K = 1
     # Check the target is within the bounds
     astate_low = @set astate.α = α1
     astate_high = @set astate.α = α2
-    arl_low = average_run_length(K, obs, unobs0, astate_low, tstate)
+    arl_low, _ = average_run_length(K, obs, unobs0, astate_low, tstate)
     println("ARL, Lower Bound for $(astate.name), $(tstate.name) = $(arl_low)")
-    arl_high = average_run_length(K, obs, unobs0, astate_high, tstate)
+    arl_high, _ = average_run_length(K, obs, unobs0, astate_high, tstate)
     println("ARL, Upper Bound for $(astate.name), $(tstate.name) = $(arl_high)")
     @assert arl_low <= target_arl <= arl_high "Target ARL must be within bounds"
     
