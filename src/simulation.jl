@@ -5,6 +5,7 @@ using Base.Threads
 using StatsFuns
 using DelimitedFiles
 using Setfield
+using OnlineStats
 
 struct StateObservable
     L::Int64 # number of locations
@@ -90,30 +91,34 @@ function sample_test_data(t, l, obs, unobs, rng_system)
 end
 
 ### PERFORMANCE METRICS
-function average_run_length(K::Int64, obs::StateObservable, unobs::StateUnobservable, 
-    astate, tstate; conf::Float64 = 0.95, tol::Float64 = 0.5)
-    times = zeros(K)
-    for k = 1:K # Threads.@threads 
+function average_run_length(obs::StateObservable, unobs::StateUnobservable, 
+    astate, tstate; conf::Float64 = 0.95, tol::Float64 = 0.5, maxiters = 1000)
+    z_score = norminvcdf(1 - (1 - conf) / 2) 
+    arlv = Variance()
+    hw = typemax(Float64)
+    for k = 1:maxiters # Threads.@threads 
         t, _, _, _ = replication(obs, unobs, astate, tstate, k+1, k+2, warn=false, copy=false)
-        times[k] = t
+        fit!(arlv, t)
+        hw = z_score * std(arlv) / sqrt(k)
+        if hw <= tol
+            break
+        end
     end
-    arl = mean(times)
-    hw = norminvcdf(1 - (1 - conf) / 2) * std(times) / sqrt(K)
     if hw > tol
         @warn("The half-width of $(hw) is larger than tolerance of $(tol) in the ARL calculation.")
     end
-    return arl, hw
+    return mean(arlv), hw
 end
 
 function calibrate_alarm_threshold(K::Int64, target_arl::Float64, obs::StateObservable, unobs::StateUnobservable,
-    astate, tstate; α1 = 1.0, tol = 0.1, maxiters=100)
+    astate, tstate; α1 = 1.0, tol = 0.1, maxiters = 100, arl_maxiters = 1000)
     α2 = obs.L * target_arl
     unobs0 = StateUnobservable(unobs.β, unobs.p0, obs.L, 1, typemax(Int64))
     # Bisection search
     i = 0
     α = (α1 + α2) / 2
     astate = @set astate.α = α
-    arl, hw = average_run_length(K, obs, unobs0, astate, tstate)
+    arl, hw = average_run_length(obs, unobs0, astate, tstate, maxiters = arl_maxiters)
 
     while abs(arl - target_arl) > tol
         i += 1
@@ -124,7 +129,7 @@ function calibrate_alarm_threshold(K::Int64, target_arl::Float64, obs::StateObse
         end
         α = (α1 + α2) / 2
         astate = @set astate.α = α
-        arl, hw = average_run_length(K, obs, unobs0, astate, tstate)
+        arl, hw = average_run_length(obs, unobs0, astate, tstate, maxiters = arl_maxiters)
         if i >= maxiters
             @warn("Maximum iterations for calibratation reached without convergence. Exiting")
             break

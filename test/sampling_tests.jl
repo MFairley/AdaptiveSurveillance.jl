@@ -31,11 +31,11 @@ tstate_evsi = TStateEVSI(βu, p0u)
 evsi_test = replication(obs, unobs, astate, tstate_evsi)
 
 # Calibration
-_ = calibrate_alarm_threshold(K, target_arl, obs, unobs, astate, tstate_constant, maxiters = maxiters_calibration)
-_ = calibrate_alarm_threshold(K, target_arl, obs, unobs, astate, tstate_random, maxiters = maxiters_calibration)
-_ = calibrate_alarm_threshold(K, target_arl, obs, unobs, astate, tstate_thompson, maxiters = maxiters_calibration)
-_ = calibrate_alarm_threshold(K, target_arl, obs, unobs, astate, tstate_evsi_clairvoyance, maxiters = maxiters_calibration)
-_ = calibrate_alarm_threshold(K, target_arl, obs, unobs, astate, tstate_evsi, maxiters = maxiters_calibration)
+_ = calibrate_alarm_threshold(K, target_arl, obs, unobs, astate, tstate_constant, maxiters = maxiters_calibration, arl_maxiters = K)
+_ = calibrate_alarm_threshold(K, target_arl, obs, unobs, astate, tstate_random, maxiters = maxiters_calibration, arl_maxiters = K)
+_ = calibrate_alarm_threshold(K, target_arl, obs, unobs, astate, tstate_thompson, maxiters = maxiters_calibration, arl_maxiters = K)
+_ = calibrate_alarm_threshold(K, target_arl, obs, unobs, astate, tstate_evsi_clairvoyance, maxiters = maxiters_calibration, arl_maxiters = K)
+_ = calibrate_alarm_threshold(K, target_arl, obs, unobs, astate, tstate_evsi, maxiters = maxiters_calibration, arl_maxiters = K)
 
 # Alarm Time Distributions
 atd_constant = alarm_time_distribution(K, obs, unobs, astate, tstate_constant, save_path)
