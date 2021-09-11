@@ -7,7 +7,7 @@ const lO = L
 const β_true = 0.015008
 const p0_true = 0.01
 const n = 200
-const target_arl = 100
+const target_arl = 100.0
 const β_true_L = ones(Float64, L) * β_true
 const p0_true_L = ones(Float64, L) * p0_true
 
@@ -58,19 +58,20 @@ const astateL = AStateLogistic(1.0, βu, p0u)
 const astateLr = AStateLogisticTopr(1.0, βu, p0u, r, L)
 
 function run_algorithm(K, astate, tstate, io)
-    astate_calibrated, α, arl, hw = calibrate_alarm_threshold(target_arl, obs, unobs, astate, tstate) # calibrate alarm threshold
+    astate_calibrated, α, arl, hw = calibrate_alarm_threshold(K, target_arl, obs, unobs, astate, tstate) # calibrate alarm threshold
     writedlm(io, permutedims(vcat(tstate.name, astate.name, α, arl, hw)), ",")
+    flush(io)
     alarm_time_distribution(K, obs, unobs, astate_calibrated, tstate, save_path)
 end
 
 function run_simulation(K, astate)
-    fn_env = "$(unobs.Γ[1])_$(unobs.p0[1])_$(unobs.p0[2])"
+    fn_env = "$(unobs.Γ_lO)_$(unobs.p0[1])_$(unobs.p0[2])"
     calibration_filename = joinpath(save_path, "calibration_$(fn_env).csv")
     open(calibration_filename, "w") do io
         writedlm(io, ["sampling_alg" "alarm_alg" "alpha" "arl" "hw"], ",")
         if run_comparators
             # Constant / Clairvoyance
-            run_algorithm(K, astate, TStateConstant(1), io)
+            run_algorithm(K, astate, TStateConstant(lO), io)
         
             # Random
             run_algorithm(K, astate, TStateRandom(), io)

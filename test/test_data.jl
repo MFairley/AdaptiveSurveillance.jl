@@ -25,15 +25,15 @@ const t = collect(1:length(W))
 
 # Sampling
 const K = 2
-const calibration_maxiters = 10
+const target_arl = 10.0
+const maxiters_calibration = 2
+const maxiters = 300
 const L = 2
 const r = 1
 const lO = 1
 const Γ_lO = 1
 const β_true_L = ones(Float64, L) * β_true
 const p0_true_L = ones(Float64, L) * p0_true
-const maxiters = 150
 const βu = 1.0
 const p0u = 0.5
-const target_arl = 10
-const α = 1000 # the higher, the less false positives
+const α = 1.0

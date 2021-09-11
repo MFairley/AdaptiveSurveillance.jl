@@ -91,28 +91,23 @@ end
 
 ### PERFORMANCE METRICS
 function average_run_length(K::Int64, obs::StateObservable, unobs::StateUnobservable, 
-    astate, tstate, tol = 0.5, conf = 0.95)
+    astate, tstate; conf::Float64 = 0.95, tol::Float64 = 0.5)
     times = zeros(K)
-    total_count = 0
     for k = 1:K # Threads.@threads 
-        t, _, fa, _ = replication(obs, unobs, astate, tstate, k+1, k+2, warn=false, copy=false)
-        if fa >= 0
-            times[k] = t
-            total_count += 1
-        end
-    end
-    if total_count < K
-        @warn "The number of timestamps evaluated for ARL is less than K"
+        t, _, _, _ = replication(obs, unobs, astate, tstate, k+1, k+2, warn=false, copy=false)
+        times[k] = t
     end
     arl = mean(times)
     hw = norminvcdf(1 - (1 - conf) / 2) * std(times) / sqrt(K)
     if hw > tol
-        @warn("The half-width for a $(conf) interval of $(hw) is larger than tolerance of $(tol) in the ARL calibratation.")
+        @warn("The half-width of $(hw) is larger than tolerance of $(tol) in the ARL calculation.")
     end
     return arl, hw
 end
 
-function calibrate_alarm_threshold(target_arl, obs, unobs, astate, tstate; K = 1000, α1 = 1, α2 = 100, tol = 0.01, maxiters=1000)
+function calibrate_alarm_threshold(K::Int64, target_arl::Float64, obs::StateObservable, unobs::StateUnobservable,
+    astate, tstate; α1 = 1.0, tol = 0.1, maxiters=100)
+    α2 = obs.L * target_arl
     unobs0 = StateUnobservable(unobs.β, unobs.p0, obs.L, 1, typemax(Int64))
     # Bisection search
     i = 0
@@ -120,15 +115,6 @@ function calibrate_alarm_threshold(target_arl, obs, unobs, astate, tstate; K = 1
     astate = @set astate.α = α
     arl, hw = average_run_length(K, obs, unobs0, astate, tstate)
 
-    # Check the target is within the bounds
-    astate_low = @set astate.α = α1
-    astate_high = @set astate.α = α2
-    arl_low, _ = average_run_length(K, obs, unobs0, astate_low, tstate)
-    println("ARL, Lower Bound for $(astate.name), $(tstate.name) = $(arl_low)")
-    arl_high, _ = average_run_length(K, obs, unobs0, astate_high, tstate)
-    println("ARL, Upper Bound for $(astate.name), $(tstate.name) = $(arl_high)")
-    @assert arl_low <= target_arl <= arl_high "Target ARL must be within bounds"
-    
     while abs(arl - target_arl) > tol
         i += 1
         if arl < target_arl
@@ -140,7 +126,7 @@ function calibrate_alarm_threshold(target_arl, obs, unobs, astate, tstate; K = 1
         astate = @set astate.α = α
         arl, hw = average_run_length(K, obs, unobs0, astate, tstate)
         if i >= maxiters
-            @warn("Maximum iterations for calibratation reached. Exiting")
+            @warn("Maximum iterations for calibratation reached without convergence. Exiting")
             break
         end
     end
@@ -151,7 +137,7 @@ function alarm_time_distribution(K::Int64, obs::StateObservable, unobs::StateUno
     astate, tstate, filepath::String)
     
     @assert obs.L >= 2
-    fn_env = "$(unobs.Γ[1])_$(unobs.p0[1])_$(unobs.p0[2])" # note this is missing many components currently as we assume others constant
+    fn_env = "$(unobs.Γ_lO)_$(unobs.p0[1])_$(unobs.p0[2])" # note this is missing many components currently as we assume others constant
     fn_alg = "$(tstate.name)_$(astate.name)"
     filename = joinpath(filepath, "atd_$(fn_alg)_$(fn_env).csv")
     base_line = [unobs.p0[1], unobs.p0[2], unobs.Γ[1], tstate.name, astate.name]
