@@ -23,7 +23,7 @@ const base_fn_suffix = "$(Γ_lO)_$(p0_true_L[1])_$(p0_true_L[2])"
 
 # Simulation Set Up 
 const K = parse(Int64, ARGS[7])
-const maxiters = parse(Int64, ARGS[8])
+const maxiters = Int(target_arl) * 2 #parse(Int64, ARGS[8])
 const run_comparators = parse(Bool, ARGS[9])
 const run_evsi = parse(Bool, ARGS[10])
 
