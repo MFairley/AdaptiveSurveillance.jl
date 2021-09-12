@@ -7,7 +7,7 @@
 #SBATCH --mem-per-cpu=1G
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=mfairley@stanford.edu
-#SBATCH --array=13-25
+#SBATCH --array=13-14
 ml julia
 # ARRAY_TASKS for mail-type if want email for every task in array
 case $SLURM_ARRAY_TASK_ID in
@@ -27,17 +27,19 @@ case $SLURM_ARRAY_TASK_ID in
     # 12) julia results/result_scripts/atd_compare.jl 0.05 0.05 I 50 0.02 0.01 1000 300 0 1 ;;
     # Logistic 0.1 0.1
     13) julia --project -t ${SLURM_CPUS_PER_TASK} results/result_scripts/atd_compare.jl 0.1 0.1 Lr 1 0.01 0.01 1000 300 1 1 ;;
-    14) julia --project -t ${SLURM_CPUS_PER_TASK} results/result_scripts/atd_compare.jl 0.1 0.1 Lr 1 0.01 0.02 1000 300 1 1 ;; # taking a long time
-    15) julia --project -t ${SLURM_CPUS_PER_TASK} results/result_scripts/atd_compare.jl 0.1 0.1 Lr 1 0.02 0.01 1000 300 1 1 ;;
-    16) julia --project -t ${SLURM_CPUS_PER_TASK} results/result_scripts/atd_compare.jl 0.1 0.1 Lr 50 0.01 0.01 1000 300 1 1 ;;
-    17) julia --project -t ${SLURM_CPUS_PER_TASK} results/result_scripts/atd_compare.jl 0.1 0.1 Lr 50 0.01 0.02 1000 300 1 1 ;; 
-    18) julia --project -t ${SLURM_CPUS_PER_TASK} results/result_scripts/atd_compare.jl 0.1 0.1 Lr 50 0.01 0.02 1000 300 1 1 ;; # thompson taking a long time
-    19) julia --project -t ${SLURM_CPUS_PER_TASK} results/result_scripts/atd_compare.jl 0.1 0.1 Lr 50 0.02 0.01 1000 300 1 1;; # taking a long time
-    # Logistic 0.05 0.05
-    20) julia --project -t ${SLURM_CPUS_PER_TASK} results/result_scripts/atd_compare.jl 0.05 0.05 Lr 1 0.01 0.01 1000 300 1 1 ;;
-    21) julia --project -t ${SLURM_CPUS_PER_TASK} results/result_scripts/atd_compare.jl 0.05 0.05 Lr 1 0.01 0.02 1000 300 1 1 ;;
-    22) julia --project -t ${SLURM_CPUS_PER_TASK} results/result_scripts/atd_compare.jl 0.05 0.05 Lr 1 0.02 0.01 1000 300 1 1 ;;
-    23) julia --project -t ${SLURM_CPUS_PER_TASK} results/result_scripts/atd_compare.jl 0.05 0.05 Lr 50 0.01 0.01 1000 300 1 1 ;; # taking a long time
-    24) julia --project -t ${SLURM_CPUS_PER_TASK} results/result_scripts/atd_compare.jl 0.05 0.05 Lr 50 0.01 0.02 1000 300 1 1 ;; # taking a long time
-    25) julia --project -t ${SLURM_CPUS_PER_TASK} results/result_scripts/atd_compare.jl 0.05 0.05 Lr 50 0.02 0.01 1000 300 1 1 ;; # taking a long time
+    14) julia --project -t ${SLURM_CPUS_PER_TASK} results/result_scripts/atd_compare.jl 0.1 0.1 L 1 0.01 0.01 1000 300 1 1 ;;
+    # 14) julia --project -t ${SLURM_CPUS_PER_TASK} results/result_scripts/atd_compare.jl 0.1 0.1 Lr 1 0.01 0.02 1000 300 1 1 ;; # taking a long time
+    # 15) julia --project -t ${SLURM_CPUS_PER_TASK} results/result_scripts/atd_compare.jl 0.1 0.1 Lr 1 0.02 0.01 1000 300 1 1 ;;
+    # 16) julia --project -t ${SLURM_CPUS_PER_TASK} results/result_scripts/atd_compare.jl 0.1 0.1 Lr 50 0.01 0.01 1000 300 1 1 ;;
+    # 17) julia --project -t ${SLURM_CPUS_PER_TASK} results/result_scripts/atd_compare.jl 0.1 0.1 Lr 50 0.01 0.02 1000 300 1 1 ;; 
+    # 18) julia --project -t ${SLURM_CPUS_PER_TASK} results/result_scripts/atd_compare.jl 0.1 0.1 Lr 50 0.01 0.02 1000 300 1 1 ;; # thompson taking a long time
+    # 19) julia --project -t ${SLURM_CPUS_PER_TASK} results/result_scripts/atd_compare.jl 0.1 0.1 Lr 50 0.02 0.01 1000 300 1 1;; # taking a long time
+    # # Logistic 0.05 0.05
+    # 20) julia --project -t ${SLURM_CPUS_PER_TASK} results/result_scripts/atd_compare.jl 0.05 0.05 Lr 1 0.01 0.01 1000 300 1 1 ;;
+    # 21) julia --project -t ${SLURM_CPUS_PER_TASK} results/result_scripts/atd_compare.jl 0.05 0.05 Lr 1 0.01 0.02 1000 300 1 1 ;;
+    # 22) julia --project -t ${SLURM_CPUS_PER_TASK} results/result_scripts/atd_compare.jl 0.05 0.05 Lr 1 0.02 0.01 1000 300 1 1 ;;
+    # 23) julia --project -t ${SLURM_CPUS_PER_TASK} results/result_scripts/atd_compare.jl 0.05 0.05 Lr 50 0.01 0.01 1000 300 1 1 ;; # taking a long time
+    # 24) julia --project -t ${SLURM_CPUS_PER_TASK} results/result_scripts/atd_compare.jl 0.05 0.05 Lr 50 0.01 0.02 1000 300 1 1 ;; # taking a long time
+    # 25) julia --project -t ${SLURM_CPUS_PER_TASK} results/result_scripts/atd_compare.jl 0.05 0.05 Lr 50 0.02 0.01 1000 300 1 1 ;; # taking a long time
+    
 esac

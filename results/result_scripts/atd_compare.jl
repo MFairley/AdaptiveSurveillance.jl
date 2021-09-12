@@ -65,24 +65,30 @@ function run_algorithm(K, astate, tstate, io)
 end
 
 function run_simulation(K, astate)
+    println("Running simulation")
     fn_env = "$(unobs.Γ_lO)_$(unobs.p0[1])_$(unobs.p0[2])"
     calibration_filename = joinpath(save_path, "calibration_$(fn_env).csv")
     open(calibration_filename, "w") do io
         writedlm(io, ["sampling_alg" "alarm_alg" "alpha" "arl" "hw"], ",")
         if run_comparators
             # Constant / Clairvoyance
+            println("Running clairovyance")
             run_algorithm(K, astate, TStateConstant(lO), io)
         
             # Random
+            println("Running random")
             run_algorithm(K, astate, TStateRandom(), io)
         
             # Thompson Sampling
+            println("Running Thompson sampling")
             run_algorithm(K, astate, TStateThompson(ones(L, 2)), io)
             
             # Clairvoyant Future Probability of Alarm
+            println("Running Thompson EVSI")
             run_algorithm(K, astate, TStateEVSIClairvoyant(unobs), io)
         end
         if run_evsi
+            println("Running EVSI")
             run_algorithm(K, astate, TStateEVSI(βu, p0u), io)
         end
     end

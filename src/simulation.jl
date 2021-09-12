@@ -111,9 +111,17 @@ function average_run_length(obs::StateObservable, unobs::StateUnobservable,
 end
 
 function calibrate_alarm_threshold(K::Int64, target_arl::Float64, obs::StateObservable, unobs::StateUnobservable,
-    astate, tstate; α1 = 1.0, tol = 0.1, maxiters = 100, arl_maxiters = 1000)
-    α2 = obs.L * target_arl
+    astate, tstate; α1 = 1.0, tol = 0.1, maxiters = 1000, arl_maxiters = 10000)
     unobs0 = StateUnobservable(unobs.β, unobs.p0, obs.L, 1, typemax(Int64))
+
+    # Find an upper bound on α
+    α2 = obs.L * target_arl
+    arl_up, hw_up = average_run_length(obs, unobs0, astate, tstate, maxiters = arl_maxiters)
+    while arl_up < target_arl
+        α2 *= 2
+        arl_up, hw_up = average_run_length(obs, unobs0, astate, tstate, maxiters = arl_maxiters)
+    end
+
     # Bisection search
     i = 0
     α = (α1 + α2) / 2
