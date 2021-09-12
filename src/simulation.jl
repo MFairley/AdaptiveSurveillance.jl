@@ -102,9 +102,9 @@ function average_run_length(obs::StateObservable, unobs::StateUnobservable,
         # println("t = $t")
         fit!(arlv, t)
         hw = z_score * std(arlv) / sqrt(k)
-        println("α = $(astate.α)")
-        println("mean = $(mean(arlv))")
-        println("hw = $(hw)")
+        # println("α = $(astate.α)")
+        # println("mean = $(mean(arlv))")
+        # println("hw = $(hw)")
         if (hw <= tol) && (k > miniters)
             break
         end
