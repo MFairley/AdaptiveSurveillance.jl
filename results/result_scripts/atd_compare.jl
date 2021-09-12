@@ -23,7 +23,7 @@ const base_fn_suffix = "$(Γ_lO)_$(p0_true_L[1])_$(p0_true_L[2])"
 
 # Simulation Set Up 
 const K = parse(Int64, ARGS[7])
-const maxiters = Int(target_arl) * 2 #parse(Int64, ARGS[8])
+const maxiters = parse(Int64, ARGS[8])
 const run_comparators = parse(Bool, ARGS[9])
 const run_evsi = parse(Bool, ARGS[10])
 
@@ -58,9 +58,11 @@ const astateL = AStateLogistic(1.0, βu, p0u)
 const astateLr = AStateLogisticTopr(1.0, βu, p0u, r, L)
 
 function run_algorithm(K, astate, tstate, io)
-    astate_calibrated, α, arl, hw = calibrate_alarm_threshold(K, target_arl, obs, unobs, astate, tstate) # calibrate alarm threshold
+    println("Running calibration")
+    astate_calibrated, α, arl, hw = calibrate_alarm_threshold(target_arl, obs, unobs, astate, tstate, maxiters = K, arl_maxiters = K * 10) # calibrate alarm threshold
     writedlm(io, permutedims(vcat(tstate.name, astate.name, α, arl, hw)), ",")
     flush(io)
+    println("Running ATD")
     alarm_time_distribution(K, obs, unobs, astate_calibrated, tstate, save_path)
 end
 
@@ -84,7 +86,7 @@ function run_simulation(K, astate)
             run_algorithm(K, astate, TStateThompson(ones(L, 2)), io)
             
             # Clairvoyant Future Probability of Alarm
-            println("Running Thompson EVSI")
+            println("Running clairvoyant EVSI")
             run_algorithm(K, astate, TStateEVSIClairvoyant(unobs), io)
         end
         if run_evsi

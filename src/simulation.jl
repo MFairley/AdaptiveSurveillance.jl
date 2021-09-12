@@ -15,6 +15,7 @@ struct StateObservable
     t::Vector{Vector{Int64}} # times corresponding to when tests collected
     W::Vector{Vector{Int64}} # number of positive tests observed
     StateObservable(L, n, maxiters) = new(L, n, maxiters, [], [[] for i = 1:L], [[] for i = 1:L])
+    StateObservable(L, n, maxiters, x, t, W) = new(L, n, maxiters, x, t, W)
 end
 
 function update!(t, l, W, state::StateObservable)
@@ -92,15 +93,19 @@ end
 
 ### PERFORMANCE METRICS
 function average_run_length(obs::StateObservable, unobs::StateUnobservable, 
-    astate, tstate; conf::Float64 = 0.95, tol::Float64 = 0.5, maxiters = 1000)
+    astate, tstate; conf::Float64 = 0.95, tol::Float64 = 0.5, miniters = 10, maxiters = 10000)
     z_score = norminvcdf(1 - (1 - conf) / 2) 
     arlv = Variance()
     hw = typemax(Float64)
     for k = 1:maxiters # Threads.@threads 
         t, _, _, _ = replication(obs, unobs, astate, tstate, k+1, k+2, warn=false, copy=false)
+        # println("t = $t")
         fit!(arlv, t)
         hw = z_score * std(arlv) / sqrt(k)
-        if hw <= tol
+        println("α = $(astate.α)")
+        println("mean = $(mean(arlv))")
+        println("hw = $(hw)")
+        if (hw <= tol) && (k > miniters)
             break
         end
     end
@@ -110,29 +115,32 @@ function average_run_length(obs::StateObservable, unobs::StateUnobservable,
     return mean(arlv), hw
 end
 
-function calibrate_alarm_threshold(K::Int64, target_arl::Float64, obs::StateObservable, unobs::StateUnobservable,
-    astate, tstate; α1 = 1.0, tol = 0.1, maxiters = 1000, arl_maxiters = 10000)
+function calibrate_alarm_threshold(target_arl::Float64, obs::StateObservable, unobs::StateUnobservable,
+    astate, tstate; α1 = 1.0, tol = 0.1, maxiters = 100, arl_maxiters = 10000)
+    α2 = obs.L * target_arl
+    obs = @set obs.maxiters = Int(target_arl) * 2
     unobs0 = StateUnobservable(unobs.β, unobs.p0, obs.L, 1, typemax(Int64))
 
     # Find an upper bound on α
-    i = 0
-    α2 = obs.L * target_arl
-    arl_up, hw_up = average_run_length(obs, unobs0, astate, tstate, maxiters = arl_maxiters)
-    while arl_up < target_arl
-        i += 1
-        α2 *= 2
-        arl_up, hw_up = average_run_length(obs, unobs0, astate, tstate, maxiters = arl_maxiters)
-        if i >= maxiters
-            @warn("Unable to find calibrartion upper bound within the maximum number of iterations")
-            break
-        end
-    end
+    # i = 0
+    # astate = @set astate.α = α2
+    # arl_up, hw_up = average_run_length(obs, unobs0, astate, tstate, maxiters = arl_maxiters)
+    # while arl_up < target_arl
+    #     i += 1
+    #     α2 *= 2
+    #     arl_up, hw_up = average_run_length(obs, unobs0, astate, tstate, maxiters = arl_maxiters)
+    #     astate = @set astate.α = α2
+    #     if i >= maxiters
+    #         @warn("Unable to find calibrartion upper bound within the maximum number of iterations")
+    #         break
+    #     end
+    # end
 
     # Bisection search
     i = 0
     α = (α1 + α2) / 2
     astate = @set astate.α = α
-    arl, hw = average_run_length(obs, unobs0, astate, tstate, maxiters = arl_maxiters)
+    arl, hw = average_run_length(obs, unobs0, astate, tstate, tol = tol, maxiters = arl_maxiters)
 
     while abs(arl - target_arl) > tol
         i += 1
@@ -142,8 +150,11 @@ function calibrate_alarm_threshold(K::Int64, target_arl::Float64, obs::StateObse
             α2 = α
         end
         α = (α1 + α2) / 2
+        
         astate = @set astate.α = α
-        arl, hw = average_run_length(obs, unobs0, astate, tstate, maxiters = arl_maxiters)
+        arl, hw = average_run_length(obs, unobs0, astate, tstate, tol = tol, maxiters = arl_maxiters)
+        # println("α = $(α)")
+        # println("arl = $(arl)")
         if i >= maxiters
             @warn("Maximum iterations for calibratation reached without convergence. Exiting")
             break

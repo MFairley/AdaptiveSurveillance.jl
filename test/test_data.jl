@@ -24,9 +24,9 @@ const W = Int.([1.0, 1.0, 1.0, 2.0, 4.0, 4.0, 3.0, 2.0, 2.0, 2.0, 0.0, 4.0, 3.0,
 const t = collect(1:length(W))
 
 # Sampling
-const K = 2
+const K = 20
 const target_arl = 10.0
-const maxiters_calibration = 2
+const maxiters_calibration = 20
 const maxiters = 300
 const L = 2
 const r = 1

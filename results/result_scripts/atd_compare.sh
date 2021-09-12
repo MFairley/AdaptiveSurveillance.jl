@@ -7,7 +7,7 @@
 #SBATCH --mem-per-cpu=1G
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=mfairley@stanford.edu
-#SBATCH --array=13-14
+#SBATCH --array=13
 ml julia
 # ARRAY_TASKS for mail-type if want email for every task in array
 case $SLURM_ARRAY_TASK_ID in
@@ -27,7 +27,7 @@ case $SLURM_ARRAY_TASK_ID in
     # 12) julia results/result_scripts/atd_compare.jl 0.05 0.05 I 50 0.02 0.01 1000 300 0 1 ;;
     # Logistic 0.1 0.1
     13) julia --project -t ${SLURM_CPUS_PER_TASK} results/result_scripts/atd_compare.jl 0.1 0.1 Lr 1 0.01 0.01 1000 300 1 1 ;;
-    14) julia --project -t ${SLURM_CPUS_PER_TASK} results/result_scripts/atd_compare.jl 0.1 0.1 L 1 0.01 0.01 1000 300 1 1 ;;
+    # 14) julia --project -t ${SLURM_CPUS_PER_TASK} results/result_scripts/atd_compare.jl 0.1 0.1 L 1 0.01 0.01 1000 300 1 1 ;;
     # 14) julia --project -t ${SLURM_CPUS_PER_TASK} results/result_scripts/atd_compare.jl 0.1 0.1 Lr 1 0.01 0.02 1000 300 1 1 ;; # taking a long time
     # 15) julia --project -t ${SLURM_CPUS_PER_TASK} results/result_scripts/atd_compare.jl 0.1 0.1 Lr 1 0.02 0.01 1000 300 1 1 ;;
     # 16) julia --project -t ${SLURM_CPUS_PER_TASK} results/result_scripts/atd_compare.jl 0.1 0.1 Lr 50 0.01 0.01 1000 300 1 1 ;;

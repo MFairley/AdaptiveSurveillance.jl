@@ -11,6 +11,13 @@ struct AStateIsotonic <: AState
     AStateIsotonic(α, name) = new(α, name) # needed for @set, internal use only
 end
 
+function get_curr_stat(l::Int64, astate::AStateIsotonic)
+    return 0.0
+end
+
+function set_curr_stat(l::Int64, v::Float64, astate::AStateIsotonic)
+end
+
 function reset(astate::AStateIsotonic)
 end
 
@@ -38,6 +45,13 @@ struct AStateLogistic <: AState
     name::String
     AStateLogistic(α, βu, p0u) = new(α, βu, p0u, logit(p0u), "logistic")
     AStateLogistic(α, βu, p0u, zu, name) = new(α, βu, p0u, zu, name) # needed for @set, internal use only
+end
+
+function get_curr_stat(l::Int64, astate::AStateLogistic)
+    return 0.0
+end
+
+function set_curr_stat(l::Int64, v::Float64, astate::AStateLogistic)
 end
 
 function reset(astate::AStateLogistic)
@@ -71,6 +85,14 @@ struct AStateLogisticTopr <: AState
     name::String
     AStateLogisticTopr(α, βu, p0u, r, L) = r > L ? error("r cannot be more than L") : new(α, βu, p0u, logit(p0u), r, L, zeros(L), "logistic_topr")
     AStateLogisticTopr(α, βu, p0u, zu, r, L, curr_stat, name) = new(α, βu, p0u, zu, r, L, curr_stat, name) # needed for @set, internal use only
+end
+
+function get_curr_stat(l::Int64, astate::AStateLogisticTopr)
+    return astate.curr_stat[l]
+end
+
+function set_curr_stat(l::Int64, v::Float64, astate::AStateLogisticTopr)
+    astate.curr_stat[l] = v
 end
 
 function reset(astate::AStateLogisticTopr)

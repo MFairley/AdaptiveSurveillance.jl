@@ -83,9 +83,11 @@ function check_astat(i, l, obs, astate)
 end
 
 function find_threshold(t, l, obs, astate)
+    curr_astat = get_curr_stat(l, astate) 
     update!(t, l, 0, obs)
     f(i) = check_astat(i, l, obs, astate)
     i = searchsortedfirst(SearchV{Int}(0:obs.n, i -> f(i)), 1) - 1
+    set_curr_stat(l, curr_astat, astate)
     reverse!(l, obs)
     return i
 end
