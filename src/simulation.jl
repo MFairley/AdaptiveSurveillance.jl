@@ -115,11 +115,17 @@ function calibrate_alarm_threshold(K::Int64, target_arl::Float64, obs::StateObse
     unobs0 = StateUnobservable(unobs.β, unobs.p0, obs.L, 1, typemax(Int64))
 
     # Find an upper bound on α
+    i = 0
     α2 = obs.L * target_arl
     arl_up, hw_up = average_run_length(obs, unobs0, astate, tstate, maxiters = arl_maxiters)
     while arl_up < target_arl
+        i += 1
         α2 *= 2
         arl_up, hw_up = average_run_length(obs, unobs0, astate, tstate, maxiters = arl_maxiters)
+        if i >= maxiters
+            @warn("Unable to find calibrartion upper bound within the maximum number of iterations")
+            break
+        end
     end
 
     # Bisection search
