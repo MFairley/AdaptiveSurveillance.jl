@@ -99,12 +99,10 @@ function average_run_length(obs::StateObservable, unobs::StateUnobservable,
     hw = typemax(Float64)
     for k = 1:maxiters # Threads.@threads 
         t, _, _, _ = replication(obs, unobs, astate, tstate, k+1, k+2, warn=false, copy=false)
-        # println("t = $t")
+
         fit!(arlv, t)
         hw = z_score * std(arlv) / sqrt(k)
-        # println("α = $(astate.α)")
-        # println("mean = $(mean(arlv))")
-        # println("hw = $(hw)")
+
         if (hw <= tol) && (k > miniters)
             break
         end
@@ -116,51 +114,53 @@ function average_run_length(obs::StateObservable, unobs::StateUnobservable,
 end
 
 function calibrate_alarm_threshold(target_arl::Float64, obs::StateObservable, unobs::StateUnobservable,
-    astate, tstate; α1 = 1.0, tol = 0.1, maxiters = 100, arl_maxiters = 10000)
-    α2 = obs.L * target_arl
-    obs = @set obs.maxiters = Int(target_arl) * 2
-    unobs0 = StateUnobservable(unobs.β, unobs.p0, obs.L, 1, typemax(Int64))
+    astate, tstate; α_left = 1.0, tol = 1e-3, maxiters = 100, arl_maxiters = 10000)
+    
+    # Re-create unobservable where outbreak never beging
+    unobs = StateUnobservable(unobs.β, unobs.p0, unobs.L, unobs.lO, typemax(Int64))
 
-    # Find an upper bound on α
-    # i = 0
-    # astate = @set astate.α = α2
-    # arl_up, hw_up = average_run_length(obs, unobs0, astate, tstate, maxiters = arl_maxiters)
-    # while arl_up < target_arl
-    #     i += 1
-    #     α2 *= 2
-    #     arl_up, hw_up = average_run_length(obs, unobs0, astate, tstate, maxiters = arl_maxiters)
-    #     astate = @set astate.α = α2
-    #     if i >= maxiters
-    #         @warn("Unable to find calibrartion upper bound within the maximum number of iterations")
-    #         break
-    #     end
-    # end
+    # Find an upper bound on α to bracket search
+    i = 0
+    α_right = target_arl * obs.L
+    astate = @set astate.α = α_right
+    arl_up, hw_up = average_run_length(obs, unobs, astate, tstate, maxiters = arl_maxiters)
+    while arl_up < target_arl
+        println("Finding upper bound: $(arl_up), $(α_right)")
+        i += 1
+        α_right *= 2
+        
+        astate = @set astate.α = α_right
+        arl_up, hw_up = average_run_length(obs, unobs, astate, tstate, maxiters = arl_maxiters)
+        
+        if i >= maxiters
+            @warn("Unable to find calibrartion upper bound within the maximum number of iterations")
+            break
+        end
+    end
 
     # Bisection search
     i = 0
-    α = (α1 + α2) / 2
+    α = (α_left + α_right) / 2
     astate = @set astate.α = α
-    arl, hw = average_run_length(obs, unobs0, astate, tstate, tol = tol, maxiters = arl_maxiters)
-
-    while abs(arl - target_arl) > tol
+    arl, hw = average_run_length(obs, unobs, astate, tstate, tol = tol, maxiters = arl_maxiters)
+    while abs(α_left - α_right) > tol
         i += 1
         if arl < target_arl
-            α1 = α
+            α_left = α
         else
-            α2 = α
+            α_right = α
         end
-        α = (α1 + α2) / 2
+        α = (α_left + α_right) / 2
         
         astate = @set astate.α = α
-        arl, hw = average_run_length(obs, unobs0, astate, tstate, tol = tol, maxiters = arl_maxiters)
-        # println("α = $(α)")
-        # println("arl = $(arl)")
+        arl, hw = average_run_length(obs, unobs, astate, tstate, tol = tol, maxiters = arl_maxiters)
+
         if i >= maxiters
             @warn("Maximum iterations for calibratation reached without convergence. Exiting")
             break
         end
     end
-    return astate, α, arl, hw
+    return astate, α, arl, hw, obs, unobs
 end
 
 function alarm_time_distribution(K::Int64, obs::StateObservable, unobs::StateUnobservable, 

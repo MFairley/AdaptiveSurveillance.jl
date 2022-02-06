@@ -1,7 +1,7 @@
 using Test
 using AdaptiveSurveillance
 
-const personal_hostname = "Michaels-MBP.lan"
+const personal_hostname = "Michaels-MBP.localdomain"
 
 tmp = joinpath(dirname(pathof(AdaptiveSurveillance)), "..", "test", "tmp")
 if startswith(gethostname(), "sh")
@@ -12,5 +12,5 @@ end
 const save_path = tmp
 
 include("test_data.jl")
-# include("logistic_tests.jl")
+include("logistic_tests.jl")
 include("sampling_tests.jl")

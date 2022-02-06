@@ -23,11 +23,18 @@ const W = Int.([1.0, 1.0, 1.0, 2.0, 4.0, 4.0, 3.0, 2.0, 2.0, 2.0, 0.0, 4.0, 3.0,
 49.0])
 const t = collect(1:length(W))
 
-# Sampling
+# Test function flow
 const K = 20
-const target_arl = 10.0
 const maxiters_calibration = 20
 const maxiters = 300
+
+# Complete calibration
+const Kc = 1000
+const maxiters_calibrationc = 100
+const maxitersc = 300
+
+# Scenario specifications
+const target_arl = 10.0
 const L = 2
 const r = 1
 const lO = 1
