@@ -8,7 +8,7 @@ const lO = 1
 const β_true = 0.015008
 const p0_true = 0.01
 const n = 200
-const target_arl = 100.0
+const target_arl = 50.0
 const β_true_L = ones(Float64, L) * β_true
 const p0_true_L = ones(Float64, L) * p0_true
 
@@ -33,6 +33,7 @@ println("Running Experiment: βu: $βu, p0u: $p0u, Alarm: $(alarm), Outbreak Tim
 using StatsFuns
 using DelimitedFiles
 using AdaptiveSurveillance
+using Setfield
 
 function get_save_path()
     save_path = joinpath(dirname(pathof(AdaptiveSurveillance)), "..", "results", "tmp")
@@ -60,11 +61,17 @@ const astateLr = AStateLogisticTopr(1.0, βu, p0u, r, L)
 
 function run_algorithm(K, astate, tstate, io)
     println("Running calibration")
-    astate_calibrated, α, arl, hw = calibrate_alarm_threshold(target_arl, obs, unobs, astate, tstate, maxiters = K, arl_maxiters = K * 10) # calibrate alarm threshold
-    writedlm(io, permutedims(vcat(tstate.name, astate.name, α, arl, hw)), ",")
-    flush(io)
+    #astate_calibrated, α, arl, hw = calibrate_alarm_threshold(target_arl, obs, unobs, astate, tstate, maxiters = K, arl_maxiters = K * 10) # calibrate alarm threshold
+    
+    α = 2.0
+    println("alpha: $α")
+    astate = @set astate.α = α
+    arl, hw = average_run_length(obs, unobs, astate, tstate, tol = 0.5, maxiters = K * 10)
+    println("arl: $arl, hw: $hw")
+    #writedlm(io, permutedims(vcat(tstate.name, astate.name, α, arl, hw)), ",")
+    #flush(io)
     println("Running ATD")
-    alarm_time_distribution(K, obs, unobs, astate_calibrated, tstate, save_path)
+    #alarm_time_distribution(K, obs, unobs, astate_calibrated, tstate, save_path)
 end
 
 function run_simulation(K, astate)
@@ -79,16 +86,16 @@ function run_simulation(K, astate)
             run_algorithm(K, astate, TStateConstant(lO), io)
         
             # Random
-            println("Running random")
-            run_algorithm(K, astate, TStateRandom(), io)
+            #println("Running random")
+            #run_algorithm(K, astate, TStateRandom(), io)
         
             # Thompson Sampling
-            println("Running Thompson sampling")
-            run_algorithm(K, astate, TStateThompson(ones(L, 2)), io)
+            #println("Running Thompson sampling")
+            #run_algorithm(K, astate, TStateThompson(ones(L, 2)), io)
             
             # Clairvoyant Future Probability of Alarm
-            println("Running clairvoyant EVSI")
-            run_algorithm(K, astate, TStateEVSIClairvoyant(unobs), io)
+            #println("Running clairvoyant EVSI")
+            #run_algorithm(K, astate, TStateEVSIClairvoyant(unobs), io)
         end
         if run_evsi
             println("Running EVSI")

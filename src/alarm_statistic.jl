@@ -12,7 +12,8 @@ struct AStateIsotonic <: AState
 end
 
 function get_curr_stat(l::Int64, astate::AStateIsotonic)
-    return 0.0
+    #return 0.0
+    return -Inf
 end
 
 function set_curr_stat(l::Int64, v::Float64, astate::AStateIsotonic)
@@ -48,7 +49,8 @@ struct AStateLogistic <: AState
 end
 
 function get_curr_stat(l::Int64, astate::AStateLogistic)
-    return 0.0
+    #return 0.0
+    return -Inf
 end
 
 function set_curr_stat(l::Int64, v::Float64, astate::AStateLogistic)
@@ -58,6 +60,9 @@ function reset(astate::AStateLogistic)
 end
 
 function afunc(l::Int64, obs::StateObservable, astate::AStateLogistic)
+    value = astat_logistic(obs.t[l], obs.W[l], obs.n, astate.βu, astate.zu)
+    #threshold = log(astate.α)
+    #println("$value >? $threshold")
     return astat_logistic(obs.t[l], obs.W[l], obs.n, astate.βu, astate.zu) > log(astate.α)
 end
 
@@ -96,10 +101,20 @@ function set_curr_stat(l::Int64, v::Float64, astate::AStateLogisticTopr)
 end
 
 function reset(astate::AStateLogisticTopr)
-    astate.curr_stat .= 0.0
+    #astate.curr_stat .= 0.0
+    astate.curr_stat .= -Inf	
 end
 
 function afunc(l::Int64, obs::StateObservable, astate::AStateLogisticTopr)
     astate.curr_stat[l] = astat_logistic(obs.t[l], obs.W[l], obs.n, astate.βu, astate.zu)
+    #nlargest = DataStructures.nlargest(astate.r, astate.curr_stat)
+    #println("nlargest: $nlargest, $(nlargest==[0.0, 0.0])")
+    #value = logsumexp(DataStructures.nlargest(astate.r, astate.curr_stat))
+    #threshold = log(astate.α)
+    #println("$value >? $threshold")
+    #if all(DataStructures.nlargest(astate.r, astate.curr_stat) .== 0)
+    #    return false
+    #end
+
     return logsumexp(DataStructures.nlargest(astate.r, astate.curr_stat)) > log(astate.α)
 end

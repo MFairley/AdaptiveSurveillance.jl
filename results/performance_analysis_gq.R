@@ -83,18 +83,54 @@ fap.dt[, c("p_lower", "p_upper") := .(sin(asin(sqrt(p)) - z / (2 * sqrt(n)))^2, 
 fap.dt[, fprob_fmt := paste0(comma(p, accuracy = 0.01), " [", comma(p_lower, accuracy = 0.01), ", ", comma(p_upper, accuracy = 0.01), "]")]
 
 # Median Conditional Delay
-med_cond_delay <- function(g_sel) {
-  sfit1 <-  survfit(Surv(t, status) ~ g + p1p2 + alg + alarm, data = atd_ind.dt[g == g_sel], start.time = g_sel - 1)
-  sfit1.dt <- unique(data.table(surv_summary(sfit1, data = atd_ind.dt))[, .(g, p1p2, alg, alarm, strata)])
-  med1.dt <- data.table(surv_median(sfit1))
-  med1.dt[, strata := factor(strata, levels = levels(sfit1.dt$strata))]
-  comb.dt <- merge(sfit1.dt, med1.dt, by = "strata")[, .(g, p1p2, alg, alarm, median, lower, upper)]
-  comb.dt[, c("median", "lower", "upper") := .(median - g_sel, lower - g_sel, upper - g_sel )]
-  return(comb.dt)
+# med_cond_delay <- function(g_sel) {
+#   sfit1 <-  survfit(Surv(t, status) ~ g + p1p2 + alg + alarm, data = atd_ind.dt[g == g_sel], start.time = g_sel - 1)
+#   sfit1.dt <- unique(data.table(surv_summary(sfit1, data = atd_ind.dt))[, .(g, p1p2, alg, alarm, strata)])
+#   med1.dt <- data.table(surv_median(sfit1))
+#   med1.dt[, strata := factor(strata, levels = levels(sfit1.dt$strata))]
+#   comb.dt <- merge(sfit1.dt, med1.dt, by = "strata")[, .(g, p1p2, alg, alarm, median, lower, upper)]
+#   comb.dt[, c("median", "lower", "upper") := .(median - g_sel, lower - g_sel, upper - g_sel )]
+#   return(comb.dt)
+# }
+#delay1.dt <- med_cond_delay(1)
+
+gq_mean <- function(fit, combine = FALSE){
+  
+  # Helper function to extract the median survival of
+  # a survfit object
+  .mean <- function(fit){
+    if(!is.null(fit$strata) | is.matrix(fit$surv)) {
+      .table <- as.data.frame(summary(fit)$table)
+    }else{
+      .table <- t(as.data.frame(summary(fit)$table)) %>%
+        as.data.frame()
+      rownames(.table) <- "All"
+    }
+    .table$strata <- rownames(.table)
+    
+    .table <- .table %>%
+      dplyr::select(.dots = c("strata",  "rmean", "se(rmean)", "median", "0.95LCL", "0.95UCL"))
+    colnames(.table) <- c("strata", "mean", "std", "median", "lower", "upper")
+    rownames(.table) <- NULL
+    .table
+  }
+  .mean(fit)
 }
 
-delay1.dt <- med_cond_delay(1)
-delay50.dt <- med_cond_delay(50)
+mean_cond_delay <- function(g_sel) {
+  sfit1 <-  survfit(Surv(t, status) ~ g + p1p2 + alg + alarm, data = atd_ind.dt[g == g_sel], start.time = g_sel - 1)
+  sfit1.dt <- unique(data.table(surv_summary(sfit1, data = atd_ind.dt))[, .(g, p1p2, alg, alarm, strata)])
+  med1.dt <- data.table(gq_mean(sfit1))
+  med1.dt[, strata := factor(strata, levels = levels(sfit1.dt$strata))]
+  comb.dt <- merge(sfit1.dt, med1.dt, by = "strata")[, .(g, p1p2, alg, alarm, mean, std, median, lower, upper)]
+  comb.dt[, c("mean","median", "lower", "upper") := .(mean - g_sel, median - g_sel, lower - g_sel, upper - g_sel )]
+  comb.dt
+}
+
+delay1.dt = mean_cond_delay(1)
+#delay50.dt <- med_cond_delay(50)
+#delay50.dt <- mean_cond_delay(50)
+
 delay.dt <- rbindlist(list(delay1.dt, delay50.dt))
 delay.dt[, med_fmt := paste0(comma(median, accuracy = 1.0), " [", comma(lower, accuracy = 1.0), ", ", comma(upper, accuracy = 1.0), "]")]
 

@@ -11,6 +11,7 @@ export profile_likelihood
 export plot_profile_likelihood
 
 export replication
+export average_run_length
 export alarm_time_distribution
 export write_alarm_time_distribution
 

@@ -1,0 +1,2 @@
+sampling_alg,alarm_alg,alpha,arl,hw
+evsi_0.1_0.1,logistic_topr,2.0,55.77240000000011,0.8098584781128908

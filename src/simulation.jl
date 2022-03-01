@@ -72,13 +72,21 @@ function replication(obs::StateObservable, unobs::StateUnobservable, astate, tst
     rng_test = MersenneTwister(seed_test)
 
     for t = 1:obs.maxiters
-        # Sample from a location and observe positive count
-        l = tfunc(t, obs, astate, tstate, rng_test)
+        if t <= 2 * obs.L
+            l = Int(ceil(t / 2))
+        else
+            # Sample from a location and observe positive count
+            l = tfunc(t, obs, astate, tstate, rng_test)
+        end
         W = sample_test_data(t, l, obs, unobs, rng_system)
         update!(t, l, W, obs)
         
+        alarm = afunc(l, obs, astate)
+        #println("alarm:$alarm")
         # Check for an alarm
-        !afunc(l, obs, astate) || return t, l, t < unobs.Γ[unobs.lO], max(0, t - unobs.Γ[unobs.lO])
+        if alarm
+            return t, l, t < unobs.Γ[unobs.lO], max(0, t - unobs.Γ[unobs.lO])
+        end 
     end
     if warn
         @warn "The maximum number of time steps, $(obs.maxiters), reached for a replication. Exiting"
@@ -99,7 +107,7 @@ function average_run_length(obs::StateObservable, unobs::StateUnobservable,
     hw = typemax(Float64)
     for k = 1:maxiters # Threads.@threads 
         t, _, _, _ = replication(obs, unobs, astate, tstate, k+1, k+2, warn=false, copy=false)
-
+        println("t: $t")
         fit!(arlv, t)
         hw = z_score * std(arlv) / sqrt(k)
 
@@ -124,6 +132,7 @@ function calibrate_alarm_threshold(target_arl::Float64, obs::StateObservable, un
     α_right = target_arl * obs.L
     astate = @set astate.α = α_right
     arl_up, hw_up = average_run_length(obs, unobs, astate, tstate, maxiters = arl_maxiters)
+    println("arl_up:$arl_up, hw_up:$hw_up")
     while arl_up < target_arl
         println("Finding upper bound: $(arl_up), $(α_right)")
         i += 1
@@ -154,7 +163,7 @@ function calibrate_alarm_threshold(target_arl::Float64, obs::StateObservable, un
         
         astate = @set astate.α = α
         arl, hw = average_run_length(obs, unobs, astate, tstate, tol = tol, maxiters = arl_maxiters)
-
+        println("arl:$arl, hw:$hw")
         if i >= maxiters
             @warn("Maximum iterations for calibratation reached without convergence. Exiting")
             break
