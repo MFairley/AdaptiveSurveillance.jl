@@ -1,3 +1,0 @@
-p1,p2,g,alg,alarm,t,l,false_alarm,delay
-0.01,0.01,1,constant,logistic_topr,51,1,0,50
-0.01,0.01,1,constant,logistic_topr,52,1,0,51
