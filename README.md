@@ -14,7 +14,14 @@ outbreak occurred in a location with lower initial prevalence than other locatio
 For a fair comparison of the different methods, we set the ARL runtime when there is no alarm for the different methods to be the same. For our paper, we first ran our EVSI method with an alpha value of 2 which resulted in an ARL value of 56 for the three different scenarios. To do this, we ran the following code. 
 
 ```
+# case 1
 julia --project=. -t 4 results/result_scripts/gq_tests.jl 0.1 0.1 Lr 1 0.01 0.01 1000 300 1 0
+# case 2
 julia --project=. -t 4 results/result_scripts/gq_tests.jl 0.1 0.1 Lr 1 0.01 0.02 1000 300 1 0
+# case 3
 julia --project=. -t 4 results/result_scripts/gq_tests.jl 0.1 0.1 Lr 1 0.02 0.01 1000 300 1 0
 ```
+
+We then calibrate the values of alpha for the other methods to have the same value ARL value of 56. This can be achieved by changing the target arl parameter in the atd_compare.jl script. 
+
+
