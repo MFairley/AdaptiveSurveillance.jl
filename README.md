@@ -1,3 +1,16 @@
-# AdaptiveSurveillance.jl
+# Adaptive Surveillance for Endemic Disease Outbreaks
 
-[![Build Status](https://travis-ci.com/MFairley/AdaptiveSurveillance.jl.svg?token=4kpQgeRYCLMsHqZ9d5kr&branch=master)](https://travis-ci.com/MFairley/AdaptiveSurveillance.jl)
+This repository is the official implementation of [Surveillance for Endemic Infectious Disease Outbreaks: Adaptive
+Sampling Using Profile Likelihood Estimation]()
+
+Outbreaks of an endemic infectious disease can occur when the disease is introduced
+into a highly susceptible subpopulation or when the disease enters a network of connected individuals. For example, significant HIV outbreaks among people who inject drugs have occurred in at least half a dozen U.S. states in recent years. This motivates the current study: how can limited testing resources be allocated across geographic regions to rapidly detect outbreaks of an endemic infectious disease? 
+
+We develop an adaptive sampling algorithm that uses profile likelihood to estimate the distribution of the number of positive tests that would occur for each location in a future time period if that location were sampled. Sampling is performed in the location with the highest estimated probability of triggering an outbreak alarm in the next time period. The alarm function is determined by a semiparametric likelihood ratio test. We compare the profile likelihood sampling (PLS) method numerically to uniform random sampling (URS) and Thompson sampling (TS). TS was worse than URS when the
+outbreak occurred in a location with lower initial prevalence than other locations. PLS had lower time to outbreak detection than TS in some but not all scenarios, but was always better than URS even when the outbreak occurred in a location with a lower initial prevalence than other locations. PLS provides an effective and reliable method for rapidly detecting endemic disease outbreaks that is robust to this uncertainty
+
+## Running the Model
+
+```
+julia --project=. -t 4 results/result_scripts/gq_tests.jl 0.1 0.1 Lr 1 0.01 0.01 1000 300 1 0
+```
